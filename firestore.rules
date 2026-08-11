@@ -1,0 +1,71 @@
+// =============================================================================
+// firestore.rules
+// -----------------------------------------------------------------------------
+// Quy tắc bảo mật Firestore — theo đúng mục 7 ARCHITECTURE.md, cộng thêm vài
+// điều kiện validate dữ liệu để tránh admin (hoặc client bị lỗi) ghi rác vào
+// database.
+//
+// Nguyên tắc chung:
+//   - ĐỌC: công khai với tất cả (màn hình hiển thị không cần đăng nhập).
+//   - GHI: chỉ tài khoản đã đăng nhập Firebase Auth (email/mật khẩu) mới được
+//     ghi — đây là "cửa admin" duy nhất. apiKey Firebase công khai không phải
+//     lỗ hổng bảo mật, an toàn nằm ở các rule dưới đây.
+//   - status/{doc}: heartbeat gửi từ 4 màn hình không đăng nhập -> phải cho
+//     phép ghi công khai, riêng cho collection này.
+// =============================================================================
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------
+    // Mặc định cho MỌI document chưa được khai báo cụ thể bên dưới
+    // (vd settings/global, themes/{id}): đọc công khai, ghi cần đăng nhập.
+    // -------------------------------------------------------------------
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------
+    // menu/{itemId}: bắt buộc name_pl (chuỗi không rỗng) và price (số)
+    // mỗi khi tạo mới / cập nhật, để tránh món ăn "rác" hiển thị trên màn.
+    // Xoá thì không cần validate dữ liệu (không có request.resource khi xoá).
+    // -------------------------------------------------------------------
+    match /menu/{itemId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.name_pl is string
+        && request.resource.data.name_pl.size() > 0
+        && request.resource.data.price is number;
+      allow delete: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------
+    // media/{mediaId}: giới hạn dung lượng ảnh nhúng base64. Admin đã tự
+    // resize + nén WebP xuống <=700KB trước khi ghi (data-layer.js), nhưng
+    // rule này là lớp bảo vệ thứ hai ở phía server, phòng trường hợp client
+    // bị lỗi hoặc ai đó ghi thẳng qua console. Firestore vốn đã giới hạn
+    // cứng 1 document <= 1MB, ở đây ta ép chặt hơn (~750KB) để luôn có
+    // khoảng đệm an toàn dưới hạn cứng của Firestore.
+    // -------------------------------------------------------------------
+    match /media/{mediaId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.size() < 1000000
+        && request.resource.data.bytes is number
+        && request.resource.data.bytes <= 750000;
+      allow delete: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------
+    // status/screen{N}: heartbeat từ 4 màn hình — không có tài khoản đăng
+    // nhập, nên phải cho đọc VÀ ghi công khai. Rủi ro thấp vì tối đa chỉ
+    // ảnh hưởng tới trạng thái hiển thị trong tab "Tổng quan" của admin.
+    // -------------------------------------------------------------------
+    match /status/{doc} {
+      allow read, write: if true;
+    }
+  }
+}

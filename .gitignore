@@ -1,0 +1,23 @@
+# Firebase CLI
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+.runtimeconfig.json
+
+# Node (không dùng để build app, nhưng firebase-tools cài local có thể tạo ra)
+node_modules/
+npm-debug.log*
+
+# Biến môi trường / bí mật cục bộ (không commit)
+.env
+.env.local
+.env.*.local
+
+# Hệ điều hành / trình soạn thảo
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

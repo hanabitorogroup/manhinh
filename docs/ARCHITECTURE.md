@@ -102,8 +102,28 @@ screen N = pages.slice((N-1)*perScreen, N*perScreen)
 Ví dụ 72 món, 6 món/trang → 12 trang → mỗi màn 3 trang: MH1 = trang 1-3, MH2 = trang 4-6,
 MH3 = 7-9, MH4 = 10-12. Đúng yêu cầu, không món nào xuất hiện ở 2 màn hình.
 
-Nếu `distribution: "manual"`: món có `screenLock = N` chỉ lên màn hình N; nhóm theo màn
-rồi chunk trong từng nhóm.
+Nếu `distribution: "manual"`: món có `screenLock = 1..4` được **ghim** vào đúng màn hình
+đó. Món còn lại — `screenLock = 0` (mặc định "Tự động"), thiếu, hoặc giá trị ngoài phạm
+vi 1..4 — được coi là **trôi nổi** và KHÔNG được phép biến mất khỏi cả 4 màn hình (nếu
+không, bật "thủ công" mà chưa ghim món nào sẽ làm trống toàn bộ thực đơn — một cái bẫy
+chết người với chủ quán không rành kỹ thuật).
+
+Xử lý cụ thể cho từng màn hình N:
+```
+locked   = items.filter(screenLock == N)                     // đã sort theo (order, name_pl)
+lockedPages   = chunk(locked, itemsPerPage)
+
+floating = items.filter(screenLock == 0 || ngoài phạm vi 1..4)  // đã sort toàn cục
+floatingPages = chunk(floating, itemsPerPage)
+perScreen     = ceil(floatingPages.length / 4)
+floatingForN  = floatingPages.slice((N-1)*perScreen, N*perScreen)
+
+pages(N) = lockedPages ++ floatingForN     // trang đã ghim hiển thị trước, trang trôi nổi nối sau
+```
+Nhóm trôi nổi dùng đúng thuật toán khối của chế độ tự động (sort toàn cục → chunk →
+`ceil(len/4)` trang mỗi màn, cắt theo N) nên phép chia không phụ thuộc trạng thái riêng
+của từng màn hình — 4 màn hình luôn đồng thuận trang nào thuộc màn nào, không tranh chấp
+và thứ tự trang luôn ổn định.
 
 Nếu một màn hình không có trang nào → hiển thị màn hình chờ (logo + hiệu ứng nền).
 

@@ -267,9 +267,40 @@ export function bootDisplay(screenId) {
     const visible = items.filter((i) => i && i.visible !== false);
 
     if (settings.distribution === "manual") {
-      // Món có screenLock = N chỉ lên màn hình N; nhóm theo màn rồi chunk trong từng nhóm.
-      const group = sortItems(visible.filter((i) => Number(i.screenLock) === screenId));
-      return chunk(group, itemsPerPage);
+      // Chế độ thủ công: món có screenLock = 1..4 được GHIM vào đúng màn hình đó.
+      // Món còn lại (screenLock = 0, thiếu, hoặc giá trị ngoài phạm vi 1..4 — tức
+      // "Tự động", giá trị mặc định của MỌI món cho tới khi chủ quán ghim tay) KHÔNG
+      // được phép biến mất khỏi cả 4 màn hình — nếu không, chỉ cần bật "thủ công" mà
+      // chưa ghim món nào là toàn bộ thực đơn trống trơn, một cái bẫy chết người với
+      // chủ quán không rành kỹ thuật. Vì vậy nhóm món "trôi nổi" này được chia đều
+      // cho 4 màn hình bằng ĐÚNG thuật toán khối của chế độ tự động (sort toàn cục
+      // theo (order, name_pl) → chunk theo itemsPerPage → mỗi màn nhận
+      // ceil(số trang / 4) trang, cắt theo screenId). Vì phép chia dựa trên toàn bộ
+      // danh sách món trôi nổi (không phụ thuộc trạng thái riêng của từng màn hình)
+      // nên 4 màn hình luôn đồng thuận trang nào thuộc màn nào — không có tranh chấp.
+      //
+      // Trang của màn hình này = các trang món đã ghim (hiển thị TRƯỚC, ổn định vì
+      // luôn thuộc đúng màn) rồi NỐI TIẾP các trang món trôi nổi thuộc phần của màn
+      // hình này (hiển thị SAU).
+      const isLockedHere = (item) => {
+        const lock = Number(item.screenLock);
+        return lock >= 1 && lock <= 4 && lock === screenId;
+      };
+      const isFloating = (item) => {
+        const lock = Number(item.screenLock);
+        return !(lock >= 1 && lock <= 4);
+      };
+
+      const locked = visible.filter(isLockedHere);
+      const lockedPages = chunk(sortItems(locked), itemsPerPage);
+
+      const floating = visible.filter(isFloating);
+      const floatingPages = chunk(sortItems(floating), itemsPerPage);
+      const floatingPerScreen = Math.ceil(floatingPages.length / 4) || 0;
+      const floatingStart = (screenId - 1) * floatingPerScreen;
+      const floatingPagesForScreen = floatingPages.slice(floatingStart, floatingStart + floatingPerScreen);
+
+      return lockedPages.concat(floatingPagesForScreen);
     }
 
     // Chế độ tự động: chia đều toàn bộ số trang cho 4 màn hình theo thứ tự.

@@ -1,0 +1,419 @@
+/* =============================================================================
+   display.css — Giao diện màn hình menu điện tử (Hanabi & Toro)
+   -----------------------------------------------------------------------------
+   Thiết kế gốc cho màn hình 1920×1080, xem từ khoảng cách vài mét, 4 màn hình
+   đặt cạnh nhau. Toàn bộ màu sắc/ font lấy từ CSS custom properties do
+   `applyTheme(el, theme)` (trong themes.js) ghi vào phần tử #app — KHÔNG có màu
+   cứng nào trong các quy tắc thẻ món / chữ, trừ một lớp "scrim" đen trung tính
+   dùng để đảm bảo độ tương phản chữ trên ảnh (bắt buộc về mặt kỹ thuật, không
+   thuộc bộ nhận diện theo mùa).
+
+   Danh sách biến CSS mà file này tiêu thụ (do applyTheme() thiết lập trên #app):
+     --bg              nền chính
+     --bg-gradient      gradient nền phụ (background-image), có thể "none"
+     --text             màu chữ chính
+     --outline          màu viền chữ (tên món / logo)
+     --outline-w        độ dày viền chữ, có đơn vị (vd "2px")
+     --accent           màu nhấn (ribbon, viền, hiệu ứng)
+     --price            màu nổi bật cho badge giá
+     --card-bg           nền thẻ món (thường là rgba mờ)
+     --font-heading     font tiêu đề (tên món, logo)
+     --font-body         font nội dung (mô tả)
+     --overlay-image    ảnh trang trí phủ nền, có thể "none"
+   ========================================================================== */
+
+/* ---------- Reset & nền tổng ---------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #000; /* thanh letterbox — trung tính, không thuộc theme */
+  overflow: hidden;
+  cursor: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  scrollbar-width: none;
+}
+body::-webkit-scrollbar {
+  display: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  overflow: hidden;
+  /* Giá trị mặc định an toàn — applyTheme() sẽ ghi đè các biến này khi dữ liệu tới */
+  --bg: #0a0a0a;
+  --bg-gradient: none;
+  --text: #f5f0e6;
+  --outline: #000000;
+  --outline-w: 2px;
+  --accent: #c0392b;
+  --price: #ffd166;
+  --card-bg: rgba(0, 0, 0, 0.4);
+  --font-heading: "Bebas Neue", "Arial Narrow", sans-serif;
+  --font-body: "Segoe UI", "Noto Sans", sans-serif;
+  --overlay-image: none;
+}
+
+/* ---------- Canvas hiệu ứng hạt -------------------------------------------- */
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+/* ---------- Khung 16:9 letterbox -------------------------------------------
+   Giữ đúng tỉ lệ 16:9 dù màn hình vật lý là 1080p, 4K hay cửa sổ trình duyệt
+   tuỳ ý khi xem trước — phần thừa được letterbox màu đen. */
+.stage {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100vw;
+  height: 100vh;
+  max-width: 177.78vh; /* 16/9 */
+  max-height: 56.25vw; /* 9/16 */
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg);
+  background-image: var(--overlay-image), var(--bg-gradient);
+  background-size: cover, cover;
+  background-position: center, center;
+  color: var(--text);
+  font-family: var(--font-body);
+  perspective: 2400px;
+  animation: burnInDrift 900s linear infinite; /* chống lưu ảnh, chu kỳ 15 phút */
+  will-change: transform;
+}
+
+@keyframes burnInDrift {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(4px, -2px); }
+  50%  { transform: translate(-2px, 4px); }
+  75%  { transform: translate(-4px, -3px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ---------- Header (tiêu đề "MENU") ---------------------------------------- */
+.menu-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(10px, 1.6vh, 26px) 0 clamp(4px, 1vh, 14px);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: clamp(1.6rem, 3vw, 3.6rem);
+  color: var(--text);
+  -webkit-text-stroke: var(--outline-w) var(--outline);
+  paint-order: stroke fill;
+}
+.menu-header[hidden] {
+  display: none;
+}
+
+/* ---------- Vùng lưới thẻ món ----------------------------------------------- */
+.grid-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.menu-grid-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
+  grid-auto-flow: dense; /* lưới đặc — phòng thủ nếu số món ngoài dải 1..6 dự kiến */
+  gap: clamp(10px, 1.3vw, 26px);
+  padding: clamp(10px, 1.4vw, 30px);
+  --layer-delay: 0.7s;
+  backface-visibility: hidden;
+}
+
+/* Trạng thái ẩn/hiện của layer (double-buffer cho hiệu ứng chuyển trang) */
+.layer-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: none;
+}
+.layer-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---- fade ---- */
+.t-fade.layer-incoming { opacity: 0; transform: scale(1.015); }
+.t-fade.layer-active   { opacity: 1; transform: scale(1); transition: opacity .75s ease, transform .75s ease; }
+.t-fade.layer-leaving  { opacity: 0; transform: scale(0.985); transition: opacity .75s ease, transform .75s ease; }
+
+/* ---- slide ---- */
+.t-slide.layer-incoming { opacity: 0; transform: translateX(3.5%); }
+.t-slide.layer-active   { opacity: 1; transform: translateX(0); transition: opacity .75s ease, transform .75s cubic-bezier(.22,.8,.25,1); }
+.t-slide.layer-leaving  { opacity: 0; transform: translateX(-3.5%); transition: opacity .75s ease, transform .75s cubic-bezier(.22,.8,.25,1); }
+
+/* ---- flip (lật nhẹ, không chóng mặt) ---- */
+.t-flip.layer-incoming { opacity: 0; transform: rotateY(-6deg) scale(.985); }
+.t-flip.layer-active   { opacity: 1; transform: rotateY(0) scale(1); transition: opacity .8s ease, transform .8s cubic-bezier(.22,.8,.25,1); }
+.t-flip.layer-leaving  { opacity: 0; transform: rotateY(6deg) scale(.985); transition: opacity .8s ease, transform .8s cubic-bezier(.22,.8,.25,1); }
+
+/* ---- curtain (rèm sân khấu — co giãn theo trục dọc) ---- */
+.t-curtain.layer-incoming { opacity: 0; transform: scaleY(.92); transform-origin: 50% 50%; }
+.t-curtain.layer-active   { opacity: 1; transform: scaleY(1); transform-origin: 50% 50%; transition: opacity .8s ease, transform .8s cubic-bezier(.22,.8,.25,1); }
+.t-curtain.layer-leaving  { opacity: 0; transform: scaleY(.92); transform-origin: 50% 50%; transition: opacity .8s ease, transform .8s cubic-bezier(.22,.8,.25,1); }
+
+/* ---------- Phân bố lưới theo số lượng món trên trang -----------------------
+   6 món  -> lưới 3x2 chuẩn (mỗi thẻ chiếm 2/6 cột)
+   5 món  -> hàng trên 3 thẻ (2/6 cột mỗi thẻ), hàng dưới 2 thẻ rộng hơn (3/6 cột)
+   4 món  -> 2x2, mỗi thẻ chiếm nửa chiều rộng (3/6 cột) x 1 hàng
+   3 món  -> 3 thẻ cao full 2 hàng (2/6 cột mỗi thẻ)
+   2 món  -> 2 thẻ lớn, mỗi thẻ nửa lưới (3/6 cột x 2 hàng)
+   1 món  -> 1 thẻ phủ toàn bộ lưới (6/6 cột x 2 hàng)
+   ---------------------------------------------------------------------------- */
+.menu-grid-layer .card {
+  grid-column: span 2;
+  grid-row: span 1;
+}
+
+.menu-grid-layer[data-count="1"] .card { grid-column: span 6; grid-row: span 2; }
+.menu-grid-layer[data-count="2"] .card { grid-column: span 3; grid-row: span 2; }
+.menu-grid-layer[data-count="3"] .card { grid-column: span 2; grid-row: span 2; }
+.menu-grid-layer[data-count="4"] .card { grid-column: span 3; grid-row: span 1; }
+.menu-grid-layer[data-count="5"] .card:nth-child(-n+3) { grid-column: span 2; grid-row: span 1; }
+.menu-grid-layer[data-count="5"] .card:nth-child(n+4)  { grid-column: span 3; grid-row: span 1; }
+.menu-grid-layer[data-count="6"] .card { grid-column: span 2; grid-row: span 1; }
+
+/* ---------- Thẻ món ---------------------------------------------------------- */
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: clamp(10px, 1vw, 20px);
+  background: var(--card-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35); /* độ nổi trung tính, không thuộc theme */
+  animation: cardEnter .6s cubic-bezier(.2,.8,.2,1) both;
+  animation-delay: calc(var(--layer-delay) + (var(--i, 0) * 60ms));
+}
+
+.card-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+@keyframes kenBurns {
+  from { transform: scale(1); }
+  to   { transform: scale(1.08); }
+}
+
+.card-media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: kenBurns 12s ease-in-out infinite alternate;
+}
+
+/* Placeholder cho món chưa có ảnh — gradient + glyph lớn mờ, vẫn trông cao cấp */
+.card-media.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-media.placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent) 0%, transparent 70%);
+  opacity: .28;
+}
+.placeholder-glyph {
+  position: relative;
+  font-size: clamp(3rem, 7vw, 7.5rem);
+  opacity: .35;
+  filter: saturate(.7);
+  line-height: 1;
+}
+
+/* Lớp phủ (scrim) để chữ luôn đọc được trên ảnh — trung tính, không đổi theo theme */
+.card-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: clamp(12px, 1.6vw, 30px) clamp(12px, 1.4vw, 26px) clamp(10px, 1.2vw, 20px);
+  background: linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.42) 55%, rgba(0,0,0,0) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: .3em;
+}
+
+.card-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1.15rem, 1.7vw + .2rem, 2.7rem);
+  line-height: 1.08;
+  color: var(--text);
+  -webkit-text-stroke: var(--outline-w) var(--outline);
+  paint-order: stroke fill;
+}
+
+.card-desc {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: clamp(.78rem, .7vw + .3rem, 1.2rem);
+  line-height: 1.32;
+  color: var(--text);
+  opacity: .88;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.price-badge {
+  align-self: flex-start;
+  margin-top: .15em;
+  padding: .3em 1em;
+  border-radius: 999px;
+  background: var(--price);
+  color: var(--bg);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: clamp(.85rem, .8vw + .3rem, 1.5rem);
+  white-space: nowrap;
+}
+
+/* Ribbon góc (badge NOWOŚĆ / HIT / PROMOCJA…) */
+.ribbon {
+  position: absolute;
+  top: clamp(14px, 2vw, 26px);
+  right: clamp(-42px, -4vw, -32px);
+  width: clamp(130px, 15vw, 190px);
+  z-index: 3;
+  transform: rotate(38deg);
+  transform-origin: center;
+  background: var(--accent);
+  color: var(--bg);
+  text-align: center;
+  padding: .38em 0;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: clamp(.65rem, .55vw + .3rem, 1rem);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+/* ---------- Màn hình chờ (idle) --------------------------------------------- */
+.idle-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 1.6vh, 22px);
+  text-align: center;
+}
+.idle-screen[hidden] { display: none; }
+
+@keyframes idlePulse {
+  0%, 100% { opacity: .82; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.015); }
+}
+
+.idle-logo {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: .08em;
+  font-size: clamp(2.6rem, 6vw, 7.5rem);
+  color: var(--text);
+  -webkit-text-stroke: var(--outline-w) var(--outline);
+  paint-order: stroke fill;
+  animation: idlePulse 6s ease-in-out infinite;
+}
+.idle-tagline {
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 1.4vw, 2rem);
+  color: var(--text);
+  opacity: .78;
+  letter-spacing: .05em;
+}
+
+/* ---------- Banner lỗi kết nối (kín đáo, không che hết màn hình) ------------ */
+.conn-banner {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(10px, 2vh, 26px);
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: .5em 1.2em;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .55);
+  color: #f2f2f2;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(.7rem, .9vw, 1rem);
+  letter-spacing: .02em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .5s ease;
+}
+.conn-banner.visible { opacity: 1; }
+.conn-banner[hidden] { display: none; }
+
+/* ---------- Chế độ an toàn / giảm chuyển động -------------------------------- */
+#app.safe-mode .stage,
+#app.safe-mode .card,
+#app.safe-mode .card-media img,
+#app.safe-mode .idle-logo {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .card,
+  .card-media img,
+  .idle-logo {
+    animation: none !important;
+  }
+  .layer-incoming,
+  .layer-active,
+  .layer-leaving {
+    transition: none !important;
+  }
+}

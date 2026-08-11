@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hanabi &amp; Toro — Ekran 2</title>
+<meta name="description" content="Cyfrowe menu — ekran 2">
+<link rel="stylesheet" href="./assets/css/display.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="fx"></canvas>
+    <div class="stage">
+      <header id="menu-header" class="menu-header" hidden></header>
+      <main id="grid" class="grid-stage"></main>
+      <section id="idle" class="idle-screen" hidden></section>
+    </div>
+    <div id="conn-error" class="conn-banner" hidden></div>
+  </div>
+  <script type="module">
+    import { bootDisplay } from './assets/js/display.js';
+    bootDisplay(2);
+  </script>
+</body>
+</html>

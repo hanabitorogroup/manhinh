@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Quản trị Menu — Hanabi &amp; Toro</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+
+<!-- ============================================================
+     Màn hình đăng nhập — chỉ hiện khi CHƯA đăng nhập và KHÔNG ở
+     chế độ DEMO. admin.js sẽ ẩn/hiện khối này tuỳ trạng thái auth.
+     ============================================================ -->
+<div id="loginScreen" class="login-screen hidden">
+  <form id="loginForm" class="login-card" novalidate>
+    <div class="login-card__logo">Hanabi &amp; Toro</div>
+    <p class="login-card__sub">Đăng nhập quản trị màn hình menu</p>
+
+    <div class="field">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label for="loginPassword">Mật khẩu</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required />
+    </div>
+    <p class="field-error hidden" id="loginError"></p>
+
+    <button type="submit" class="btn btn-primary login-card__submit" id="loginSubmitBtn">
+      Đăng nhập
+    </button>
+    <p class="login-card__hint">Chỉ dành cho chủ quán &amp; nhân viên quản lý.</p>
+  </form>
+</div>
+
+<!-- ============================================================
+     Khung ứng dụng chính — hiện khi đã đăng nhập (hoặc DEMO)
+     ============================================================ -->
+<div id="appShell" class="app-shell hidden">
+
+  <div id="demoBanner" class="demo-banner hidden">
+    ⚠️ <strong>Chế độ THỬ NGHIỆM</strong> — dữ liệu chỉ lưu trên máy này. Xem DEPLOY.md để kết nối Firebase.
+  </div>
+
+  <div style="display:contents" id="shellBody">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="sidebar__brand-mark">🎆</div>
+        <div class="sidebar__brand-text">
+          <strong>Hanabi &amp; Toro</strong>
+          <span>Quản trị màn hình menu</span>
+        </div>
+      </div>
+
+      <nav class="nav-list" id="navList">
+        <button class="nav-item" data-tab="overview"><span class="nav-ico">📊</span> Tổng quan</button>
+        <button class="nav-item" data-tab="items"><span class="nav-ico">🍱</span> Món ăn</button>
+        <button class="nav-item" data-tab="layout"><span class="nav-ico">🧩</span> Bố cục</button>
+        <button class="nav-item" data-tab="theme"><span class="nav-ico">🎨</span> Giao diện</button>
+        <button class="nav-item" data-tab="preview"><span class="nav-ico">🖥️</span> Xem trước</button>
+      </nav>
+
+      <div class="sidebar__footer">
+        <div class="sidebar__user" id="sidebarUser">—</div>
+        <button class="btn btn-ghost btn-block" id="logoutBtn">Đăng xuất</button>
+      </div>
+    </aside>
+
+    <main class="app-main">
+      <header class="topbar">
+        <h1 id="topbarTitle">Tổng quan</h1>
+        <div class="topbar__right">
+          <button class="btn btn-sm" id="pushUpdateBtnTop" title="Tăng revision để ép 4 màn hình tải lại">
+            🔄 Đẩy cập nhật
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+
+        <!-- ============ TAB 1: TỔNG QUAN ============ -->
+        <section class="tab-panel" id="tab-overview" data-tab-panel="overview">
+          <div class="panel-head">
+            <div>
+              <h2>Tổng quan hệ thống</h2>
+              <p class="panel-desc">Tình trạng 4 màn hình và số liệu thực đơn hiện tại.</p>
+            </div>
+            <button class="btn btn-primary" id="pushUpdateBtn">🔄 Đẩy cập nhật</button>
+          </div>
+
+          <div class="stat-grid" id="statGrid"><!-- JS render --></div>
+
+          <div class="section-title">Trạng thái màn hình</div>
+          <div class="screen-grid" id="screenGrid"><!-- JS render --></div>
+        </section>
+
+        <!-- ============ TAB 2: MÓN ĂN ============ -->
+        <section class="tab-panel" id="tab-items" data-tab-panel="items">
+          <div class="panel-head">
+            <div>
+              <h2>Danh sách món ăn</h2>
+              <p class="panel-desc">Kéo–thả để đổi thứ tự hiển thị. Bấm vào một món để sửa.</p>
+            </div>
+            <button class="btn btn-primary" id="addItemBtn">➕ Thêm món</button>
+          </div>
+
+          <div class="items-toolbar">
+            <div class="search-box">
+              <input type="search" id="itemSearch" placeholder="🔍 Tìm theo tên hoặc mô tả…" />
+            </div>
+            <select id="categoryFilter">
+              <option value="">Tất cả danh mục</option>
+            </select>
+          </div>
+          <p class="filter-hint hidden" id="dndDisabledHint">
+            ℹ️ Xoá tìm kiếm / bộ lọc để sắp xếp lại bằng kéo–thả.
+          </p>
+
+          <div class="item-list-head">
+            <span></span><span>Ảnh</span><span>Tên món</span><span>Danh mục</span>
+            <span>Giá</span><span>Nhãn</span><span>Hiện</span><span>Màn hình</span><span></span>
+          </div>
+          <div class="item-list" id="itemList"><!-- JS render --></div>
+          <div class="empty-state hidden" id="itemEmptyState">
+            <div class="emoji">🍜</div>
+            <p>Chưa có món nào khớp. Thử xoá bộ lọc hoặc thêm món mới.</p>
+          </div>
+        </section>
+
+        <!-- ============ TAB 3: BỐ CỤC ============ -->
+        <section class="tab-panel" id="tab-layout" data-tab-panel="layout">
+          <div class="panel-head">
+            <div>
+              <h2>Bố cục hiển thị</h2>
+              <p class="panel-desc">Cách chia trang và tốc độ xoay vòng trên 4 màn hình.</p>
+            </div>
+          </div>
+
+          <div class="layout-controls">
+            <div class="control-card">
+              <h4>Số món mỗi trang</h4>
+              <div class="segmented" id="itemsPerPageSeg">
+                <button data-val="4">4</button>
+                <button data-val="5">5</button>
+                <button data-val="6">6</button>
+              </div>
+            </div>
+
+            <div class="control-card">
+              <h4>Thời gian chuyển trang</h4>
+              <div class="slider-row">
+                <input type="range" id="rotationSlider" min="5" max="60" step="1" value="10" />
+                <span class="slider-val" id="rotationVal">10s</span>
+              </div>
+            </div>
+
+            <div class="control-card">
+              <h4>Kiểu chuyển cảnh</h4>
+              <select id="transitionSelect">
+                <option value="fade">Mờ dần (fade)</option>
+                <option value="slide">Trượt (slide)</option>
+                <option value="flip">Lật (flip)</option>
+                <option value="curtain">Kéo màn (curtain)</option>
+              </select>
+            </div>
+
+            <div class="control-card">
+              <h4>Chế độ phân trang</h4>
+              <div class="segmented" id="distributionSeg">
+                <button data-val="auto">Tự động</button>
+                <button data-val="manual">Thủ công</button>
+              </div>
+              <p class="field-hint">Thủ công: dùng "Ghim màn hình" ở tab Món ăn cho từng món.</p>
+            </div>
+
+            <div class="control-card">
+              <h4>Tiêu đề đầu trang</h4>
+              <label class="switch" style="margin-bottom:10px;">
+                <input type="checkbox" id="showHeaderToggle" />
+                <span class="track"></span>
+                <span class="switch-label">Hiện tiêu đề</span>
+              </label>
+              <input type="text" id="headerTextInput" placeholder="VD: MENU" />
+            </div>
+
+            <div class="control-card">
+              <h4>Đơn vị tiền tệ</h4>
+              <input type="text" id="currencyInput" placeholder="zł" maxlength="6" />
+            </div>
+          </div>
+
+          <div class="section-title">Sơ đồ phân trang trực quan</div>
+          <p class="panel-desc" style="margin-bottom:12px;">
+            Món nào rơi vào trang nào, trang nào rơi vào màn hình nào — cập nhật ngay khi bạn chỉnh ở trên.
+          </p>
+          <div class="layout-diagram" id="layoutDiagram"><!-- JS render --></div>
+        </section>
+
+        <!-- ============ TAB 4: GIAO DIỆN ============ -->
+        <section class="tab-panel" id="tab-theme" data-tab-panel="theme">
+          <div class="panel-head">
+            <div>
+              <h2>Giao diện theo mùa</h2>
+              <p class="panel-desc">Chọn 1 theme để áp dụng ngay cho cả 4 màn hình, sau đó tuỳ chỉnh riêng bên dưới.</p>
+            </div>
+          </div>
+
+          <div class="theme-gallery" id="themeGallery"><!-- JS render --></div>
+
+          <div class="section-title">
+            Tuỳ chỉnh theme đang chọn: <span id="activeThemeName" style="color:var(--accent-hover)">—</span>
+          </div>
+          <div class="override-grid" id="overrideGrid"><!-- JS render --></div>
+
+          <div style="margin-top:20px; display:flex; gap:10px;">
+            <button class="btn" id="resetThemeBtn">↺ Khôi phục mặc định</button>
+          </div>
+        </section>
+
+        <!-- ============ TAB 5: XEM TRƯỚC ============ -->
+        <section class="tab-panel" id="tab-preview" data-tab-panel="preview">
+          <div class="panel-head">
+            <div>
+              <h2>Xem trước trực tiếp</h2>
+              <p class="panel-desc">Đúng những gì khách nhìn thấy trên 4 màn hình, cập nhật theo thời gian thực.</p>
+            </div>
+          </div>
+          <div class="preview-toolbar">
+            <button class="btn btn-primary" id="reloadAllBtn">🔁 Tải lại tất cả</button>
+          </div>
+          <div class="preview-grid" id="previewGrid"><!-- JS render --></div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Thanh tab dưới cùng cho di động -->
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="overview"><span class="nav-ico">📊</span>Tổng quan</button>
+    <button data-tab="items"><span class="nav-ico">🍱</span>Món ăn</button>
+    <button data-tab="layout"><span class="nav-ico">🧩</span>Bố cục</button>
+    <button data-tab="theme"><span class="nav-ico">🎨</span>Giao diện</button>
+    <button data-tab="preview"><span class="nav-ico">🖥️</span>Xem trước</button>
+  </nav>
+</div>
+
+<!-- ============================================================
+     Modal thêm/sửa món — dùng chung, admin.js đổ dữ liệu vào
+     ============================================================ -->
+<div id="itemModalOverlay" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal__head">
+      <h3 id="itemModalTitle">Thêm món</h3>
+      <button class="btn btn-icon btn-ghost" id="itemModalClose">✕</button>
+    </div>
+    <form id="itemForm">
+      <div class="modal__body">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="fName">Tên món (PL) *</label>
+            <input type="text" id="fName" required placeholder="VD: Ramen Tonkotsu" />
+          </div>
+          <div class="field full">
+            <label for="fDesc">Mô tả (PL)</label>
+            <textarea id="fDesc" placeholder="VD: Bulion wieprzowy, jajko, nori…"></textarea>
+          </div>
+
+          <div class="field">
+            <label for="fPrice">Giá *</label>
+            <input type="number" id="fPrice" step="0.01" min="0" required placeholder="39.90" />
+          </div>
+          <div class="field">
+            <label for="fPriceSuffix">Hậu tố giá</label>
+            <input type="text" id="fPriceSuffix" placeholder="VD: /100g" />
+          </div>
+
+          <div class="field">
+            <label for="fCategory">Danh mục (slug)</label>
+            <input type="text" id="fCategory" list="categoryOptions" placeholder="VD: ramen" />
+            <datalist id="categoryOptions"></datalist>
+          </div>
+          <div class="field">
+            <label for="fBadge">Nhãn</label>
+            <input type="text" id="fBadge" list="badgeOptions" placeholder="Không có" />
+            <datalist id="badgeOptions">
+              <option value="NOWOŚĆ"></option>
+              <option value="HIT"></option>
+              <option value="PROMOCJA"></option>
+            </datalist>
+          </div>
+
+          <div class="field">
+            <label for="fScreenLock">Ghim màn hình</label>
+            <select id="fScreenLock">
+              <option value="0">Tự động</option>
+              <option value="1">Màn hình 1</option>
+              <option value="2">Màn hình 2</option>
+              <option value="3">Màn hình 3</option>
+              <option value="4">Màn hình 4</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <label class="switch">
+              <input type="checkbox" id="fVisible" checked />
+              <span class="track"></span>
+              <span class="switch-label">Hiện trên màn hình</span>
+            </label>
+          </div>
+
+          <div class="field full">
+            <label>Hình ảnh</label>
+            <div class="image-picker">
+              <div class="image-picker__drop" id="imageDropPreview">🍽️</div>
+              <div class="image-picker__controls">
+                <input type="file" id="fImageFile" accept="image/*" />
+                <input type="url" id="fImageUrl" placeholder="hoặc dán URL ảnh https://…" />
+                <p class="image-win-note">
+                  Nếu vừa tải ảnh lên vừa dán URL: <b>ảnh tải lên sẽ được ưu tiên</b> hiển thị.
+                  <button type="button" class="btn btn-sm btn-ghost" id="clearUploadedImgBtn" style="margin-top:4px;">Xoá ảnh đã tải, dùng URL</button>
+                </p>
+                <p class="field-hint" id="uploadStatus"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>Xem trước thẻ món</label>
+            <div class="preview-card-wrap">
+              <div class="preview-mini" id="itemPreviewCard">
+                <div class="preview-mini__img placeholder" id="previewImgBox">🍽️</div>
+                <div class="preview-mini__body">
+                  <div class="preview-mini__name" id="previewName">Tên món</div>
+                  <div class="preview-mini__desc" id="previewDesc">Mô tả món ăn…</div>
+                  <div class="preview-mini__row">
+                    <span class="preview-mini__price" id="previewPrice">0,00 zł</span>
+                    <span class="preview-mini__badge hidden" id="previewBadge"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal__foot">
+        <button type="button" class="btn" id="itemModalCancel">Huỷ</button>
+        <button type="submit" class="btn btn-primary" id="itemSaveBtn">Lưu món</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     Modal xác nhận dùng chung (xoá món, khôi phục theme, v.v.)
+     ============================================================ -->
+<div id="confirmModalOverlay" class="modal-overlay hidden">
+  <div class="modal modal-sm" role="alertdialog" aria-modal="true">
+    <div class="modal__head">
+      <h3 id="confirmModalTitle">Xác nhận</h3>
+    </div>
+    <div class="modal__body">
+      <p id="confirmModalMessage">Bạn có chắc chắn?</p>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn" id="confirmModalCancel">Huỷ</button>
+      <button type="button" class="btn btn-danger" id="confirmModalOk">Đồng ý</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ngăn xếp thông báo -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

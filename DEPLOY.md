@@ -116,18 +116,22 @@ Google đã tạo dự án ở Bước 1.
 
 ## Bước 7 — Nhập thực đơn mẫu (tuỳ chọn)
 
-File `seed/seed-data.json` chứa 24 món mẫu (chỉ dùng để tự động nạp vào
-**chế độ DEMO** — localStorage của trình duyệt — khi chưa cấu hình Firebase).
+File `public/assets/js/seed-data.js` chứa 72 món mẫu (chỉ dùng để tự động nạp
+vào **chế độ DEMO** — localStorage của trình duyệt — khi chưa cấu hình
+Firebase; đây là 1 module JS được `data-layer.js` import thẳng, không phải
+file tải qua mạng, nên luôn có sẵn kể cả sau khi deploy thật).
 Với Firebase thật, dữ liệu **không tự nạp** — bạn có 2 cách:
 
 - **Cách dễ nhất (khuyên dùng):** mở trang `/admin` → tab **"Món ăn"** → thêm
-  từng món bằng tay, lấy tên/mô tả/giá tham khảo trong `seed/seed-data.json`.
-  Với 24 món việc này chỉ mất khoảng 20-30 phút và giúp bạn làm quen luôn với
-  trang quản trị.
+  từng món bằng tay, lấy tên/mô tả/giá tham khảo trong
+  `public/assets/js/seed-data.js`. Với 72 món việc này mất khoảng 1-1.5 giờ —
+  có thể chỉ nhập trước một phần thực đơn thật rồi bổ sung dần, không cần làm
+  hết trong 1 lần.
 - **Cách nhanh cho người rành kỹ thuật:** dùng Firebase Console → Firestore
   Database → tạo thủ công collection `menu`, hoặc viết 1 script nhỏ dùng
-  Firebase Admin SDK để import `seed/seed-data.json` (không có sẵn trong dự
-  án này để giữ đúng nguyên tắc "không cần npm, không build step").
+  Firebase Admin SDK để import dữ liệu từ `public/assets/js/seed-data.js`
+  (không có sẵn trong dự án này để giữ đúng nguyên tắc "không cần npm, không
+  build step").
 
 ## Bước 8 — Kết nối tên miền barkinglong.pl
 

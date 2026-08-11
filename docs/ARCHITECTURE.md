@@ -168,8 +168,13 @@ export const DEMO;                                // true nếu chạy không c�
 ```
 
 **DEMO_MODE**: khi chưa cấu hình Firebase, `data-layer.js` đọc/ghi `localStorage` với dữ
-liệu mẫu từ `seed/seed-data.json`. Nhờ vậy mở file bằng trình duyệt là chạy được ngay,
-không cần tài khoản. Đây là chế độ để nghiệm thu trước khi bàn giao.
+liệu mẫu import tĩnh từ `public/assets/js/seed-data.js` (72 món → 12 trang → đúng 3 trang
+mỗi màn hình, đủ để thấy hiệu ứng chuyển trang hoạt động). Nhờ vậy chạy được ngay, không
+cần tài khoản. Đây là chế độ để nghiệm thu trước khi bàn giao.
+
+> Dữ liệu mẫu phải nằm **trong** `public/` và được `import` như một ES module, không đặt
+> ngoài thư mục gốc rồi `fetch`: Firebase Hosting lấy `public/` làm gốc website, nên file
+> để ngoài sẽ 404 sau khi deploy.
 
 Firebase SDK dùng **modular v10 qua CDN ESM** (`https://www.gstatic.com/firebasejs/10.12.2/…`).
 Không dùng npm, không build step — deploy là copy thư mục `public/`.

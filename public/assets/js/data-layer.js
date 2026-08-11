@@ -8,8 +8,9 @@
 // Có 2 "backend" phía sau CÙNG MỘT API:
 //   1) Firebase thật  — khi firebase-config.js đã được điền (DEMO_MODE=false)
 //   2) DEMO (localStorage) — khi chưa cấu hình Firebase, dữ liệu mẫu lấy từ
-//      seed/seed-data.json, lưu vào localStorage của trình duyệt. Nhờ vậy có
-//      thể chạy thử toàn bộ hệ thống mà không cần tài khoản Firebase.
+//      module ./seed-data.js (import tĩnh, không phải fetch), lưu vào
+//      localStorage của trình duyệt. Nhờ vậy có thể chạy thử toàn bộ hệ
+//      thống mà không cần tài khoản Firebase, kể cả sau khi đã deploy thật.
 //
 // QUAN TRỌNG: các hàm on*() không bao giờ throw lỗi ra ngoài vòng lặp render —
 // nếu mất mạng / lỗi Firestore, ta log lỗi ra console và GIỮ NGUYÊN dữ liệu cũ
@@ -18,6 +19,7 @@
 
 import { firebaseConfig, DEMO_MODE } from "./firebase-config.js";
 import { THEMES, mergeTheme } from "./themes.js";
+import { SEED_DATA } from "./seed-data.js";
 
 /** true nếu đang chạy chế độ DEMO (không có Firebase). */
 export const DEMO = DEMO_MODE;
@@ -48,43 +50,6 @@ const DEFAULT_SETTINGS = {
   effectsLevel: "full",
   revision: 0,
   updatedAt: null,
-};
-
-// Dữ liệu tối thiểu dùng khi KHÔNG tải được seed/seed-data.json (vd mở sai
-// đường dẫn, không chạy qua local server). Chỉ để app không "trắng trơn".
-const FALLBACK_SEED = {
-  settings: DEFAULT_SETTINGS,
-  menu: [
-    {
-      id: "fallback-1",
-      name_pl: "Ramen Tonkotsu",
-      desc_pl: "Bulion wieprzowy gotowany 12h, jajko marynowane, chashu.",
-      price: 32.9,
-      priceSuffix: "",
-      imageUrl: "",
-      mediaId: "",
-      category: "ramen",
-      badge: "HIT",
-      order: 10,
-      visible: true,
-      screenLock: 0,
-    },
-    {
-      id: "fallback-2",
-      name_pl: "Sushi Maki Łosoś",
-      desc_pl: "8 szt. świeżego łososia, ryż, nori.",
-      price: 28.5,
-      priceSuffix: "",
-      imageUrl: "",
-      mediaId: "",
-      category: "sushi",
-      badge: "",
-      order: 20,
-      visible: true,
-      screenLock: 0,
-    },
-  ],
-  themes: {},
 };
 
 // -----------------------------------------------------------------------------
@@ -194,27 +159,12 @@ if (DEMO && typeof window !== "undefined" && typeof window.addEventListener === 
   });
 }
 
-async function ensureSeeded() {
+function ensureSeeded() {
   if (readLS(KEYS.seeded, false)) return;
-  let seed;
-  try {
-    // Đường dẫn tương đối tới seed/seed-data.json (nằm ngoài thư mục public/).
-    // Cần chạy qua 1 local server (vd `npx serve .` hoặc
-    // `python3 -m http.server`) từ thư mục gốc dự án — mở trực tiếp bằng
-    // file:// sẽ không fetch được vì trình duyệt chặn CORS cho ES module.
-    const url = new URL("../../../seed/seed-data.json", import.meta.url).href;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    seed = await res.json();
-  } catch (e) {
-    console.warn(
-      "[data-layer] Không tải được seed/seed-data.json — dùng dữ liệu mẫu tối thiểu. " +
-        "Hãy chạy trang qua local server (vd: npx serve .) thay vì mở file trực tiếp.",
-      e
-    );
-    seed = FALLBACK_SEED;
-  }
-
+  // SEED_DATA được import tĩnh từ seed-data.js (nằm ngay trong public/assets/js/,
+  // được deploy cùng toàn bộ site) — không còn fetch mạng, không còn phụ thuộc
+  // đường dẫn tương đối hay việc phải chạy qua local server chỉ để xem DEMO.
+  const seed = SEED_DATA || {};
   writeLS(KEYS.settings, seed.settings || DEFAULT_SETTINGS);
   writeLS(KEYS.menu, seed.menu || []);
   writeLS(KEYS.themes, seed.themes || {});
@@ -310,7 +260,7 @@ export function initData() {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
     if (DEMO) {
-      await ensureSeeded();
+      ensureSeeded();
       _serverOffsetMs = 0; // DEMO chạy 100% phía client, không có "server" riêng
       return;
     }

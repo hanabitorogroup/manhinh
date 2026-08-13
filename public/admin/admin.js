@@ -1224,12 +1224,21 @@ function wireStaticEvents() {
     const file = e.target.files && e.target.files[0];
     if (file) handleFileSelected(file);
   });
+  $("clearImageUrlBtn").addEventListener("click", () => {
+    $("fImageUrl").value = "";
+    $("uploadStatus").style.color = "";
+    $("uploadStatus").textContent = state.uploadedMediaDataUrl
+      ? "Đã xoá URL — giờ sẽ dùng ảnh đã tải lên."
+      : "Đã xoá URL.";
+    updateImagePickerPreview();
+    updateItemLivePreview();
+  });
   $("clearUploadedImgBtn").addEventListener("click", () => {
     state.uploadedMediaId = "";
     state.uploadedMediaDataUrl = "";
     $("fImageFile").value = "";
     $("uploadStatus").style.color = "";
-    $("uploadStatus").textContent = "Đã xoá ảnh tải lên — sẽ dùng URL dán bên dưới (nếu có).";
+    $("uploadStatus").textContent = "Đã xoá ảnh tải lên.";
     updateImagePickerPreview();
     updateItemLivePreview();
   });

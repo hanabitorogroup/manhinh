@@ -319,8 +319,11 @@
                 <input type="file" id="fImageFile" accept="image/*" />
                 <input type="url" id="fImageUrl" placeholder="hoặc dán URL ảnh https://…" />
                 <p class="image-win-note">
-                  Nếu vừa tải ảnh lên vừa dán URL: <b>ảnh tải lên sẽ được ưu tiên</b> hiển thị.
-                  <button type="button" class="btn btn-sm btn-ghost" id="clearUploadedImgBtn" style="margin-top:4px;">Xoá ảnh đã tải, dùng URL</button>
+                  Nếu vừa tải ảnh lên vừa dán URL: <b>URL dán sẽ được ưu tiên</b> hiển thị (giống hệt màn hình thật).
+                  Muốn dùng ảnh vừa tải lên thì xoá URL.
+                  <br />
+                  <button type="button" class="btn btn-sm btn-ghost" id="clearImageUrlBtn" style="margin-top:4px;">Xoá URL, dùng ảnh đã tải</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="clearUploadedImgBtn" style="margin-top:4px;">Xoá ảnh đã tải lên</button>
                 </p>
                 <p class="field-hint" id="uploadStatus"></p>
               </div>

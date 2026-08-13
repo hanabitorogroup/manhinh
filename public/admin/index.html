@@ -10,6 +10,20 @@
 <body>
 
 <!-- ============================================================
+     Preflight (Blocker 2) — banner chẩn đoán cấu hình Firebase, chạy
+     khi !DEMO, ĐỘC LẬP với đăng nhập (hiện cả trên màn hình đăng nhập
+     vì config/Firestore/Auth hỏng có thể chính là lý do không đăng
+     nhập được). admin.js đổ nội dung + ẩn/hiện khối này.
+     ============================================================ -->
+<div id="preflightPanel" class="preflight-panel hidden" role="status">
+  <div class="preflight-panel__head">
+    <span id="preflightTitle">Đang kiểm tra kết nối Firebase…</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="preflightDismiss" title="Ẩn">✕</button>
+  </div>
+  <ul class="preflight-list" id="preflightList"></ul>
+</div>
+
+<!-- ============================================================
      Màn hình đăng nhập — chỉ hiện khi CHƯA đăng nhập và KHÔNG ở
      chế độ DEMO. admin.js sẽ ẩn/hiện khối này tuỳ trạng thái auth.
      ============================================================ -->
@@ -94,6 +108,10 @@
 
           <div class="section-title">Trạng thái màn hình</div>
           <div class="screen-grid" id="screenGrid"><!-- JS render --></div>
+
+          <!-- Nhập/xoá dữ liệu mẫu (Blocker 1) — admin.js ẩn hẳn ở DEMO,
+               nổi bật khi `menu` rỗng, thu gọn khi đã có dữ liệu. -->
+          <div id="seedPanelWrap"><!-- JS render --></div>
         </section>
 
         <!-- ============ TAB 2: MÓN ĂN ============ -->
@@ -381,6 +399,43 @@
     <div class="modal__foot">
       <button type="button" class="btn" id="confirmModalCancel">Huỷ</button>
       <button type="button" class="btn btn-danger" id="confirmModalOk">Đồng ý</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Modal 3 lựa chọn khi nhập dữ liệu mẫu mà `menu` ĐÃ có dữ liệu
+     (Blocker 1) — "thêm vào" và "xoá hết rồi nhập lại" là 2 hành
+     động khác hẳn nhau, KHÔNG dùng chung 1 nút "Đồng ý" mập mờ.
+     ============================================================ -->
+<div id="seedChoiceModalOverlay" class="modal-overlay hidden">
+  <div class="modal modal-sm" role="alertdialog" aria-modal="true">
+    <div class="modal__head"><h3>Firestore đã có dữ liệu</h3></div>
+    <div class="modal__body">
+      <p>Collection <code>menu</code> hiện đã có <strong id="seedChoiceCount">0</strong> món ăn. Chọn cách nhập dữ liệu mẫu:</p>
+      <ul class="seed-choice-list">
+        <li><strong>Thêm vào</strong> — giữ nguyên món đang có, chỉ ghi thêm 72 món mẫu (món mẫu trùng id với lần seed trước sẽ được ghi đè lại đúng dữ liệu gốc, không đụng món do bạn tự thêm).</li>
+        <li><strong>Xoá hết rồi nhập lại</strong> — xoá vĩnh viễn toàn bộ món đang có, sau đó nhập lại 72 món mẫu từ đầu. Không thể hoàn tác.</li>
+      </ul>
+    </div>
+    <div class="modal__foot seed-choice-foot">
+      <button type="button" class="btn" id="seedChoiceCancelBtn">Huỷ</button>
+      <div class="seed-choice-foot__actions">
+        <button type="button" class="btn" id="seedChoiceAddBtn">➕ Thêm vào</button>
+        <button type="button" class="btn btn-danger" id="seedChoiceReplaceBtn">🗑️ Xoá hết rồi nhập lại</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal tiến trình nhập/xoá dữ liệu mẫu (batched writes) -->
+<div id="seedProgressModalOverlay" class="modal-overlay hidden">
+  <div class="modal modal-sm" role="alertdialog" aria-modal="true">
+    <div class="modal__head"><h3>Đang xử lý dữ liệu mẫu…</h3></div>
+    <div class="modal__body">
+      <p class="seed-progress-label" id="seedProgressLabel">Đang chuẩn bị…</p>
+      <div class="seed-progress-track"><div class="seed-progress-bar" id="seedProgressBar"></div></div>
+      <p class="field-hint">Đừng đóng hay tải lại trang trong lúc này.</p>
     </div>
   </div>
 </div>

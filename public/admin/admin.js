@@ -40,6 +40,13 @@ const {
   signIn,
   onAuth,
   signOutAdmin,
+  // GHI CHÚ — cũng KHÔNG nằm trong bảng "API bắt buộc" mục 4 ARCHITECTURE.md,
+  // theo đúng tiền lệ onMedia/resolveImage/resyncServerOffset bên dưới: dùng
+  // qua `typeof === 'function'` trước khi gọi, không import cứng bằng tên.
+  seedSampleData,
+  deleteAllMenuItems,
+  runPreflight,
+  checkWritePermission,
 } = DataLayer;
 
 // GHI CHÚ: onMedia/resolveImage không nằm trong bảng "API bắt buộc" ở mục 4
@@ -78,6 +85,8 @@ const state = {
   uploadedMediaDataUrl: "", // dataURL cục bộ tức thời cho ảnh vừa chọn trong modal (trước khi onMedia kịp echo về)
   expandedPreview: null, // 1..4 hoặc null
   previewInitialized: false,
+  preflightChecks: [], // kết quả runPreflight()/checkWritePermission(), xem renderPreflightPanel()
+  seedBusy: false, // đang nhập/xoá dữ liệu mẫu -> chặn bấm 2 lần chồng nhau
 };
 
 let dragSrcId = null;
@@ -188,6 +197,102 @@ function showConfirm(title, message, okLabel = "Đồng ý") {
     cancelBtn.addEventListener("click", onCancel);
     overlay.addEventListener("click", onOverlay);
   });
+}
+
+/* =============================================================================
+   Preflight — banner chẩn đoán cấu hình Firebase (Blocker 2)
+   -----------------------------------------------------------------------------
+   Chạy khi !DEMO, ĐỘC LẬP với luồng đăng nhập (initAuthGate) — hiện ngay cả
+   khi chưa đăng nhập, vì chính config/Firestore/Auth hỏng có thể là LÝ DO
+   không đăng nhập được. Sau khi đăng nhập thành công, bootApp() gọi thêm
+   checkWritePermission() và gộp kết quả vào cùng panel này.
+   ========================================================================== */
+function preflightIcon(status) {
+  return status === "ok" ? "✅" : status === "fail" ? "❌" : "⚠️";
+}
+
+/** Thêm/ghi đè 1 kết quả kiểm tra (theo id) rồi vẽ lại panel. */
+function upsertPreflightCheck(check) {
+  if (!check) return;
+  const idx = state.preflightChecks.findIndex((c) => c.id === check.id);
+  if (idx >= 0) state.preflightChecks[idx] = check;
+  else state.preflightChecks.push(check);
+  renderPreflightPanel();
+}
+
+function renderPreflightPanel() {
+  const panel = $("preflightPanel");
+  if (!panel) return;
+  const checks = state.preflightChecks;
+  if (!checks.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+  const anyFail = checks.some((c) => c.status === "fail");
+  const anyWarn = checks.some((c) => c.status === "warn");
+  panel.classList.remove("hidden");
+  panel.classList.toggle("panel-fail", anyFail);
+  panel.classList.toggle("panel-warn", !anyFail && anyWarn);
+  panel.classList.toggle("panel-ok", !anyFail && !anyWarn);
+  $("preflightTitle").textContent = anyFail
+    ? "⚠️ Phát hiện lỗi cấu hình Firebase — xem chi tiết bên dưới"
+    : anyWarn
+      ? "Đã kiểm tra kết nối Firebase — một vài mục cần tự kiểm tra thêm"
+      : "✅ Kết nối Firebase ổn định";
+  $("preflightList").innerHTML = checks.map((c) => `
+    <li class="preflight-item ${c.status}">
+      <span class="preflight-item__icon">${preflightIcon(c.status)}</span>
+      <span class="preflight-item__body">
+        <strong>${escapeHtml(c.label)}</strong> — ${escapeHtml(c.message)}
+        ${c.fix ? `<div class="preflight-item__fix">👉 ${escapeHtml(c.fix)}</div>` : ""}
+      </span>
+    </li>`).join("");
+
+  if (!anyFail && !anyWarn) {
+    // Không có lỗi nào — tự thu gọn sau vài giây, không cần chủ quán bấm gì.
+    clearTimeout(renderPreflightPanel._autoHideTimer);
+    renderPreflightPanel._autoHideTimer = setTimeout(() => panel.classList.add("hidden"), 6000);
+  } else {
+    clearTimeout(renderPreflightPanel._autoHideTimer);
+  }
+}
+
+/** Chạy (1) config, (2) đọc Firestore, (3) Auth Email/Password — trước khi biết trạng thái đăng nhập. */
+async function runPreflightCheckUI() {
+  if (DEMO) return;
+  if (typeof runPreflight !== "function") return;
+  const panel = $("preflightPanel");
+  if (panel) {
+    panel.classList.remove("hidden");
+    $("preflightTitle").textContent = "Đang kiểm tra kết nối Firebase…";
+    $("preflightList").innerHTML = "";
+  }
+  try {
+    const result = await runPreflight();
+    state.preflightChecks = result.checks || [];
+    renderPreflightPanel();
+  } catch (err) {
+    state.preflightChecks = [{
+      id: "preflight-crash", status: "warn", label: "Tự kiểm tra cấu hình",
+      message: "Không tự kiểm tra được cấu hình Firebase: " + errMsg(err),
+    }];
+    renderPreflightPanel();
+  }
+}
+
+/** Chạy SAU khi đăng nhập thành công — gộp kết quả kiểm tra quyền ghi vào panel đã có. */
+async function runPostLoginWriteCheckUI() {
+  if (DEMO) return;
+  if (typeof checkWritePermission !== "function") return;
+  try {
+    const check = await checkWritePermission();
+    upsertPreflightCheck(check);
+  } catch (err) {
+    upsertPreflightCheck({
+      id: "firestore-write", status: "warn", label: "Quyền ghi Firestore",
+      message: "Không tự kiểm tra được quyền ghi: " + errMsg(err),
+    });
+  }
 }
 
 /* =============================================================================
@@ -337,6 +442,7 @@ async function bootApp() {
   }
   startDataSubscriptions();
   switchTab("overview");
+  runPostLoginWriteCheckUI(); // Blocker 2 — gộp kết quả kiểm tra quyền ghi vào panel preflight
 }
 
 function showLogin() {
@@ -426,6 +532,186 @@ function renderOverview() {
       </dl>
     </div>`;
   }).join("");
+
+  renderSeedPanel();
+}
+
+/* =============================================================================
+   TAB 1 — Nhập / xoá dữ liệu mẫu ("Thiết lập & dữ liệu mẫu")
+   -----------------------------------------------------------------------------
+   CHỈ hiện khi !DEMO (ở DEMO, seed đã tự nạp sẵn vào localStorage — xem
+   ensureSeeded() trong data-layer.js). Nổi bật khi `menu` đang RỖNG (lần đầu
+   kết nối Firebase thật, đúng tình huống chủ quán cần nhất), thu gọn vào
+   <details> khi đã có dữ liệu để không vô tình bấm nhầm — thao tác này ghi/
+   xoá hàng chục document thật.
+   ========================================================================== */
+function renderSeedPanel() {
+  const wrap = $("seedPanelWrap");
+  if (!wrap) return;
+  if (DEMO) {
+    wrap.innerHTML = "";
+    return;
+  }
+  const count = state.items.length;
+  const seedAvailable = typeof seedSampleData === "function";
+  const deleteAvailable = typeof deleteAllMenuItems === "function";
+
+  let bodyHtml;
+  if (count === 0) {
+    bodyHtml = `
+    <div class="setup-panel setup-panel--warn">
+      <div class="setup-panel__icon">📥</div>
+      <div class="setup-panel__body">
+        <h4>Firestore chưa có món ăn nào</h4>
+        <p>Nhập nhanh 72 món mẫu (lấy từ <code>seed-data.js</code>) để thử nghiệm toàn bộ hệ thống ngay — 4 màn hình, phân trang, xoay vòng — thay vì phải gõ tay từng món. Có thể xoá sạch sau khi thử xong, trước khi nhập thực đơn thật.</p>
+        <div class="setup-panel__actions">
+          <button type="button" class="btn btn-primary" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập 72 món ăn mẫu</button>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    bodyHtml = `
+    <details class="setup-panel setup-panel--collapsed">
+      <summary>🛠️ Công cụ dữ liệu mẫu (nâng cao)</summary>
+      <div class="setup-panel__body">
+        <p>Firestore hiện có <strong>${count}</strong> món ăn. Dùng công cụ dưới đây để nhập thêm dữ liệu mẫu, hoặc xoá sạch để chuẩn bị nhập thực đơn thật.</p>
+        <div class="setup-panel__actions">
+          <button type="button" class="btn" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập dữ liệu mẫu</button>
+          <button type="button" class="btn btn-danger" id="seedDeleteBtn" ${deleteAvailable ? "" : "disabled"}>🗑️ Xoá toàn bộ dữ liệu mẫu</button>
+        </div>
+      </div>
+    </details>`;
+  }
+
+  wrap.innerHTML = `<div class="section-title">Thiết lập &amp; dữ liệu mẫu</div>${bodyHtml}`;
+  const importBtn = wrap.querySelector("#seedImportBtn");
+  const deleteBtn = wrap.querySelector("#seedDeleteBtn");
+  if (importBtn) importBtn.addEventListener("click", openSeedImportFlow);
+  if (deleteBtn) deleteBtn.addEventListener("click", openSeedDeleteFlow);
+}
+
+function seedProgressShow(initialLabel) {
+  state.seedBusy = true;
+  const overlay = $("seedProgressModalOverlay");
+  $("seedProgressLabel").textContent = initialLabel;
+  $("seedProgressBar").style.width = "0%";
+  overlay.classList.remove("hidden");
+}
+
+function seedProgressUpdate(done, total, label) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  $("seedProgressBar").style.width = `${pct}%`;
+  $("seedProgressLabel").textContent = `${label} (${done}/${total})`;
+}
+
+function seedProgressHide() {
+  state.seedBusy = false;
+  $("seedProgressModalOverlay").classList.add("hidden");
+}
+
+/** Modal 3 lựa chọn khi `menu` đã có dữ liệu: Thêm vào / Xoá hết rồi nhập lại / Huỷ. */
+function showSeedChoiceModal(count) {
+  return new Promise((resolve) => {
+    $("seedChoiceCount").textContent = String(count);
+    const overlay = $("seedChoiceModalOverlay");
+    overlay.classList.remove("hidden");
+    const addBtn = $("seedChoiceAddBtn");
+    const replaceBtn = $("seedChoiceReplaceBtn");
+    const cancelBtn = $("seedChoiceCancelBtn");
+    const cleanup = (result) => {
+      overlay.classList.add("hidden");
+      addBtn.removeEventListener("click", onAdd);
+      replaceBtn.removeEventListener("click", onReplace);
+      cancelBtn.removeEventListener("click", onCancel);
+      overlay.removeEventListener("click", onOverlay);
+      resolve(result);
+    };
+    const onAdd = () => cleanup("add");
+    const onReplace = () => cleanup("replace");
+    const onCancel = () => cleanup(null);
+    const onOverlay = (e) => { if (e.target === overlay) cleanup(null); };
+    addBtn.addEventListener("click", onAdd);
+    replaceBtn.addEventListener("click", onReplace);
+    cancelBtn.addEventListener("click", onCancel);
+    overlay.addEventListener("click", onOverlay);
+  });
+}
+
+async function openSeedImportFlow() {
+  if (state.seedBusy) return;
+  if (typeof seedSampleData !== "function") {
+    toast("Chức năng nhập dữ liệu mẫu chưa sẵn sàng (thiếu data-layer.seedSampleData).", "err");
+    return;
+  }
+  const count = state.items.length;
+  let mode = "add";
+
+  if (count > 0) {
+    const choice = await showSeedChoiceModal(count);
+    if (!choice) return; // Huỷ
+    mode = choice;
+    if (mode === "replace") {
+      const ok2 = await showConfirm(
+        "Xác nhận xoá dữ liệu hiện có",
+        `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn đang có trong Firestore, sau đó nhập lại 72 món mẫu. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn muốn tiếp tục?`,
+        "Xoá và nhập lại"
+      );
+      if (!ok2) return;
+    }
+  } else {
+    const ok = await showConfirm(
+      "Nhập dữ liệu mẫu",
+      "Thao tác này sẽ ghi 72 món ăn mẫu vào collection \"menu\" trong Firestore, cùng cấu hình mặc định \"settings/global\" nếu chưa có. Chỉ nên dùng để thử nghiệm hệ thống trước khi nhập thực đơn thật. Tiếp tục?",
+      "Nhập 72 món mẫu"
+    );
+    if (!ok) return;
+  }
+
+  seedProgressShow(mode === "replace" ? "Đang xoá dữ liệu cũ…" : "Đang chuẩn bị ghi dữ liệu mẫu…");
+  try {
+    const result = await seedSampleData(mode, (done, total, stage) => {
+      seedProgressUpdate(done, total, stage === "deleting" ? "Đang xoá dữ liệu cũ…" : "Đang ghi dữ liệu mẫu…");
+    });
+    seedProgressHide();
+    await bumpRevisionAfterSave();
+    const extra = result.deleted ? `, đã xoá ${result.deleted} món cũ trước đó` : "";
+    toast(`Đã nhập dữ liệu mẫu thành công — ${result.written} tài liệu đã ghi${extra}.`);
+  } catch (err) {
+    seedProgressHide();
+    toast("Lỗi khi nhập dữ liệu mẫu: " + errMsg(err), "err");
+  }
+}
+
+async function openSeedDeleteFlow() {
+  if (state.seedBusy) return;
+  if (typeof deleteAllMenuItems !== "function") {
+    toast("Chức năng xoá dữ liệu mẫu chưa sẵn sàng (thiếu data-layer.deleteAllMenuItems).", "err");
+    return;
+  }
+  const count = state.items.length;
+  if (count === 0) {
+    toast("Không có món nào để xoá.");
+    return;
+  }
+  const ok = await showConfirm(
+    "Xoá toàn bộ dữ liệu mẫu",
+    `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn hiện có trong collection "menu" của Firestore. Hành động này KHÔNG THỂ HOÀN TÁC — chỉ dùng khi muốn dọn dữ liệu thử nghiệm trước khi nhập thực đơn thật. Bạn có chắc chắn?`,
+    "Xoá toàn bộ"
+  );
+  if (!ok) return;
+
+  seedProgressShow("Đang xoá dữ liệu…");
+  try {
+    const result = await deleteAllMenuItems((done, total) => {
+      seedProgressUpdate(done, total, "Đang xoá dữ liệu…");
+    });
+    seedProgressHide();
+    await bumpRevisionAfterSave();
+    toast(`Đã xoá ${result.deleted} món ăn.`);
+  } catch (err) {
+    seedProgressHide();
+    toast("Lỗi khi xoá dữ liệu: " + errMsg(err), "err");
+  }
 }
 
 /* =============================================================================
@@ -1139,6 +1425,15 @@ function wireItemsListEvents() {
 }
 
 function wireStaticEvents() {
+  // Preflight (Blocker 2): ẩn banner, ghim lại nếu người dùng đang xem lỗi
+  // (không tự động ẩn nữa trong phiên này để không "chớp" mất thông tin).
+  const preflightDismiss = $("preflightDismiss");
+  if (preflightDismiss) {
+    preflightDismiss.addEventListener("click", () => {
+      $("preflightPanel").classList.add("hidden");
+    });
+  }
+
   // Điều hướng tab (sidebar + thanh tab di động)
   document.querySelectorAll(".nav-item, #tabbar button").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
@@ -1286,5 +1581,6 @@ function wireStaticEvents() {
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", () => {
   wireStaticEvents();
+  runPreflightCheckUI(); // Blocker 2 — độc lập với đăng nhập, chạy song song
   initAuthGate();
 });

@@ -201,6 +201,7 @@ export function bootDisplay(screenId) {
         attempt++;
         state.connFailed = true;
         showConnError(true);
+        logConnectionError("initData", err);
         const wait = Math.min(RETRY_BASE_MS * attempt, RETRY_MAX_MS);
         await sleep(wait);
       }
@@ -293,7 +294,7 @@ export function bootDisplay(screenId) {
         recompute();
       });
     } catch (e) {
-      reportSoftError();
+      reportSoftError("onSettings", e);
     }
 
     try {
@@ -302,7 +303,7 @@ export function bootDisplay(screenId) {
         recompute();
       });
     } catch (e) {
-      reportSoftError();
+      reportSoftError("onMenu", e);
     }
 
     try {
@@ -311,7 +312,7 @@ export function bootDisplay(screenId) {
         applyThemeIfNeeded();
       });
     } catch (e) {
-      reportSoftError();
+      reportSoftError("onThemes", e);
     }
 
     // onMedia không nằm trong hợp đồng bắt buộc — chỉ dùng nếu tồn tại thật sự
@@ -327,9 +328,31 @@ export function bootDisplay(screenId) {
     }
   }
 
-  function reportSoftError() {
+  function reportSoftError(source, err) {
     // Lỗi khi subscribe không nên làm sập cả trang — hiện banner kín đáo và tiếp tục
     showConnError(true);
+    logConnectionError(source, err);
+  }
+
+  /**
+   * Ghi chi tiết lỗi kết nối ra CONSOLE (tiếng Việt, dùng chung logic phân
+   * loại với admin.js/data-layer.js) — CHỈ ra console, không hiện cho khách.
+   * Màn hình khách chỉ thấy 1 dòng tiếng Ba Lan tối giản (showConnError()) vì
+   * đây là màn hình signage đối diện khách hàng, không phải công cụ debug.
+   */
+  function logConnectionError(source, err) {
+    try {
+      const describe = typeof DataLayerNS.describeConnectionError === "function"
+        ? DataLayerNS.describeConnectionError
+        : null;
+      console.error(
+        `[display:${SCREEN_ID}] Lỗi kết nối dữ liệu (${source}):`,
+        describe ? describe(err) : (err && err.message) || err,
+        err
+      );
+    } catch (e) {
+      /* logging không được phép làm sập vòng lặp kết nối */
+    }
   }
 
   // ---------------------------------------------------------------------

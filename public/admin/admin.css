@@ -111,6 +111,29 @@ body {
 }
 
 /* =============================================================================
+   Preflight (Blocker 2) — banner chẩn đoán cấu hình Firebase
+   ========================================================================== */
+.preflight-panel {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  background: var(--bg-elev-2); border-bottom: 3px solid var(--info);
+  max-height: 55vh; overflow-y: auto; box-shadow: var(--shadow-2);
+}
+.preflight-panel.panel-fail { border-bottom-color: var(--bad); }
+.preflight-panel.panel-warn { border-bottom-color: var(--gold); }
+.preflight-panel.panel-ok { border-bottom-color: var(--good); }
+.preflight-panel__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 16px; font-weight: 700; font-size: 13.5px;
+}
+.preflight-list { list-style: none; margin: 0; padding: 0 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.preflight-item { display: flex; gap: 10px; font-size: 13px; align-items: flex-start; line-height: 1.5; }
+.preflight-item__icon { flex-shrink: 0; }
+.preflight-item__fix { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; }
+.preflight-item.fail strong { color: var(--bad); }
+.preflight-item.warn strong { color: var(--gold); }
+.preflight-item.ok strong { color: var(--good); }
+
+/* =============================================================================
    Banner DEMO
    ========================================================================== */
 .demo-banner {
@@ -368,6 +391,38 @@ input[type="range"]::-moz-range-thumb {
 .screen-card dd { margin: 0; text-align: right; font-weight: 600; }
 
 .section-title { font-size: 15px; font-weight: 700; margin: 26px 0 12px; }
+
+/* =============================================================================
+   Tab 1 — Thiết lập & dữ liệu mẫu (Blocker 1)
+   ========================================================================== */
+.setup-panel {
+  background: var(--bg-elev-2); border: 1px solid var(--border-soft); border-radius: var(--radius-md);
+  padding: 16px 18px; margin-bottom: 20px; display: flex; gap: 14px;
+}
+.setup-panel--warn { border-color: var(--gold); background: linear-gradient(180deg, rgba(255, 209, 102, .08), transparent 60%), var(--bg-elev-2); }
+.setup-panel__icon { font-size: 26px; line-height: 1.2; flex-shrink: 0; }
+.setup-panel__body { flex: 1; min-width: 0; }
+.setup-panel__body h4 { font-size: 15px; margin-bottom: 6px; }
+.setup-panel__body p { color: var(--text-muted); font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+.setup-panel__body code { background: var(--bg-elev-1); border: 1px solid var(--border-soft); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+.setup-panel__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+details.setup-panel { display: block; padding: 0; }
+details.setup-panel summary {
+  cursor: pointer; padding: 14px 18px; font-weight: 700; font-size: 14px; list-style: none;
+}
+details.setup-panel summary::-webkit-details-marker { display: none; }
+details.setup-panel summary::marker { content: ""; }
+details.setup-panel[open] summary { border-bottom: 1px solid var(--border-soft); }
+details.setup-panel .setup-panel__body { padding: 14px 18px; }
+
+.seed-choice-list { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+.seed-choice-foot { justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.seed-choice-foot__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.seed-progress-label { font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+.seed-progress-track { width: 100%; height: 8px; border-radius: 999px; background: var(--bg-elev-3); overflow: hidden; margin: 10px 0 12px; }
+.seed-progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width .2s ease; }
 
 /* =============================================================================
    Tab 2 — Món ăn

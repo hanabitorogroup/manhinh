@@ -1,0 +1,132 @@
+name: Deploy to Firebase
+
+# Tự động deploy Firebase Hosting + Firestore rules mỗi khi có push. Không có
+# bước build — repo này không dùng npm/webpack, "deploy" chỉ là publish thẳng
+# thư mục public/ (xem README.md). Hướng dẫn thiết lập: docs/GITHUB-ACTIONS.md
+
+on:
+  push:
+    branches:
+      - main
+      - claude/digital-menu-hanabi-toro-2xozaq
+  workflow_dispatch: {}
+
+# Nếu 2 lần push chồng lên nhau, lần chạy sau phải CHỜ lần trước xong (không
+# hủy nửa chừng một deploy đang chạy, không chạy song song 2 deploy cùng lúc).
+concurrency:
+  group: firebase-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Hosting + Firestore rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # CHẶN DEPLOY nếu cấu hình vẫn còn giá trị mẫu "PASTE_...". Nếu không
+      # chặn ở đây, trang web thật sẽ lên mạng nhưng chạy ở CHẾ ĐỘ THỬ NGHIỆM
+      # (dữ liệu mẫu trong localStorage của từng trình duyệt, không phải menu
+      # thật, không đồng bộ giữa 4 màn hình) — lỗi rất khó nhận ra vì trang
+      # vẫn "chạy được", chỉ là chạy sai dữ liệu.
+      # ---------------------------------------------------------------------
+      - name: Chặn deploy nếu còn cấu hình mẫu (PASTE_)
+        run: |
+          set -euo pipefail
+          FAIL=0
+
+          # Chỉ kiểm tra DÒNG GÁN GIÁ TRỊ của từng field, không kiểm tra cả
+          # file: file này có sẵn comment hướng dẫn và chính dòng code phát
+          # hiện DEMO_MODE (`apiKey.includes("PASTE_")`) đều chứa chuỗi
+          # "PASTE_" vĩnh viễn — nếu grep cả file thì guard sẽ luôn luôn báo
+          # lỗi kể cả sau khi đã điền đủ giá trị thật.
+          CONFIG_FILE="public/assets/js/firebase-config.js"
+          for FIELD in apiKey authDomain projectId storageBucket messagingSenderId appId; do
+            LINE=$(grep -E "^[[:space:]]*${FIELD}[[:space:]]*:" "$CONFIG_FILE" || true)
+            if [ -n "$LINE" ] && printf '%s' "$LINE" | grep -q "PASTE_"; then
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo "::error file=${CONFIG_FILE}::CHƯA CẤU HÌNH FIREBASE: file ${CONFIG_FILE} vẫn còn ít nhất một giá trị mẫu 'PASTE_...' trong object firebaseConfig. Nếu deploy lúc này, trang thật sẽ chạy ở CHẾ ĐỘ THỬ NGHIỆM (dữ liệu mẫu, không phải menu thật) mà không có dấu hiệu báo lỗi rõ ràng nào. Hãy mở file ${CONFIG_FILE}, dán đủ 6 giá trị cấu hình Firebase Web App (xem hướng dẫn ngay trong file, hoặc DEPLOY.md), rồi commit lại."
+          fi
+
+          RC_FILE=".firebaserc"
+          RC_LINE=$(grep -E '"default"[[:space:]]*:' "$RC_FILE" || true)
+          if [ -n "$RC_LINE" ] && printf '%s' "$RC_LINE" | grep -q "PASTE_"; then
+            FAIL=1
+            echo "::error file=${RC_FILE}::CHƯA CẤU HÌNH FIREBASE: file ${RC_FILE} vẫn còn giá trị mẫu 'PASTE_YOUR_FIREBASE_PROJECT_ID'. Hãy thay bằng Project ID thật của dự án Firebase (Project settings → General → Project ID), rồi commit lại."
+          fi
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo "::error::DEPLOY ĐÃ BỊ DỪNG để tránh phát hành trang web ở chế độ thử nghiệm. Sửa (các) file nêu trên rồi push lại. Xem docs/GITHUB-ACTIONS.md, mục 'Khắc phục sự cố' nếu cần trợ giúp."
+            exit 1
+          fi
+
+          echo "OK: firebase-config.js và .firebaserc đã được cấu hình. Tiếp tục deploy."
+
+      - name: Xác định Firebase Project ID
+        id: project
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${FIREBASE_PROJECT_ID:-}" ]; then
+            PROJECT_ID="$FIREBASE_PROJECT_ID"
+          else
+            if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+              echo "::error::Thiếu secret FIREBASE_SERVICE_ACCOUNT (repo → Settings → Secrets and variables → Actions). Xem docs/GITHUB-ACTIONS.md."
+              exit 1
+            fi
+            if ! PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT" | jq -re '.project_id' 2>/dev/null); then
+              echo "::error::Secret FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ (hoặc thiếu field project_id), và secret FIREBASE_PROJECT_ID cũng chưa được đặt. Kiểm tra lại nội dung đã dán vào secret FIREBASE_SERVICE_ACCOUNT — phải là TOÀN BỘ nội dung file JSON tải từ Firebase Console, không sửa/cắt bớt. Xem docs/GITHUB-ACTIONS.md."
+              exit 1
+            fi
+          fi
+
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+          echo "Deploy tới dự án Firebase: $PROJECT_ID"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Ghi thông tin xác thực service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "::error::Thiếu secret FIREBASE_SERVICE_ACCOUNT (repo → Settings → Secrets and variables → Actions). Xem docs/GITHUB-ACTIONS.md."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          if ! jq -e . "$RUNNER_TEMP/firebase-service-account.json" > /dev/null 2>&1; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ. Secret này phải là TOÀN BỘ nội dung file .json tải từ Firebase Console (Project settings → Service accounts → Generate new private key), dán nguyên văn, không thêm/bớt gì. Xem docs/GITHUB-ACTIONS.md."
+            exit 1
+          fi
+
+      - name: Deploy Hosting + Firestore rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+        run: |
+          set -euo pipefail
+          npx --yes firebase-tools@15.26.0 deploy \
+            --project "$PROJECT_ID" \
+            --only hosting,firestore:rules \
+            --non-interactive
+
+      - name: Dọn file thông tin xác thực
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"

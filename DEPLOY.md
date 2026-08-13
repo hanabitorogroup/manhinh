@@ -114,24 +114,51 @@ Google đã tạo dự án ở Bước 1.
    `https://<project-id>.web.app` — mở thử địa chỉ đó, thêm `/admin` ở cuối để
    vào trang quản trị, đăng nhập bằng tài khoản đã tạo ở Bước 3.
 
-## Bước 7 — Nhập thực đơn mẫu (tuỳ chọn)
+## Bước 7 — Nhập dữ liệu mẫu để thử nghiệm ngay (khuyên dùng)
 
-File `public/assets/js/seed-data.js` chứa 72 món mẫu (chỉ dùng để tự động nạp
-vào **chế độ DEMO** — localStorage của trình duyệt — khi chưa cấu hình
-Firebase; đây là 1 module JS được `data-layer.js` import thẳng, không phải
-file tải qua mạng, nên luôn có sẵn kể cả sau khi deploy thật).
-Với Firebase thật, dữ liệu **không tự nạp** — bạn có 2 cách:
+Ngay sau khi deploy xong (Bước 6), Firestore của bạn **hoàn toàn trống** —
+chưa có món ăn nào, cả 4 màn hình sẽ chỉ hiện màn hình chờ (logo, không có
+món). Đây là chuyện bình thường: chế độ DEMO tự nạp 72 món mẫu vào bộ nhớ
+trình duyệt, nhưng Firebase thật thì không tự nạp gì cả. Bạn **không cần gõ
+tay 72 món** để thử hệ thống — trang quản trị có sẵn nút nhập nhanh:
 
-- **Cách dễ nhất (khuyên dùng):** mở trang `/admin` → tab **"Món ăn"** → thêm
-  từng món bằng tay, lấy tên/mô tả/giá tham khảo trong
-  `public/assets/js/seed-data.js`. Với 72 món việc này mất khoảng 1-1.5 giờ —
-  có thể chỉ nhập trước một phần thực đơn thật rồi bổ sung dần, không cần làm
-  hết trong 1 lần.
-- **Cách nhanh cho người rành kỹ thuật:** dùng Firebase Console → Firestore
-  Database → tạo thủ công collection `menu`, hoặc viết 1 script nhỏ dùng
-  Firebase Admin SDK để import dữ liệu từ `public/assets/js/seed-data.js`
-  (không có sẵn trong dự án này để giữ đúng nguyên tắc "không cần npm, không
-  build step").
+1. Mở `https://<project-id>.web.app/admin` (địa chỉ terminal vừa in ra ở Bước
+   6), đăng nhập bằng tài khoản đã tạo ở Bước 3.
+2. Ở tab **"Tổng quan"**, vì `menu` đang trống, bạn sẽ thấy ngay khung màu
+   vàng **"Firestore chưa có món ăn nào"** với nút **"📥 Nhập 72 món ăn
+   mẫu"**.
+3. Bấm nút đó. Một hộp thoại tiếng Việt sẽ xác nhận rõ những gì sắp xảy ra:
+   ghi 72 món ăn mẫu vào Firestore (collection `menu`), cộng thêm cấu hình
+   mặc định `settings/global` nếu chưa có. Bấm **"Nhập 72 món mẫu"** để tiếp
+   tục.
+4. Chờ vài giây — hệ thống ghi dữ liệu theo từng đợt (batch), có thanh tiến
+   trình ngay trong hộp thoại. Xong sẽ có thông báo "Đã nhập dữ liệu mẫu
+   thành công".
+5. Mở tab **"Xem trước"** (hoặc trực tiếp `omh1.html`..`omh4.html`) để thấy
+   72 món chia đều cho 4 màn hình, tự xoay trang — đúng những gì khách sẽ
+   thấy khi màn hình signage thật lên sóng.
+
+> **An toàn dữ liệu:** nút này sẽ KHÔNG bao giờ âm thầm ghi đè dữ liệu có
+> sẵn. Nếu `menu` đã có món (vd bạn bấm lại lần 2, hoặc đã nhập vài món thật
+> tay trước đó), hệ thống sẽ hỏi bạn chọn rõ ràng giữa **"Thêm vào"** (giữ
+> nguyên món hiện có, chỉ thêm/ghi đè lại đúng 72 món mẫu) hoặc **"Xoá hết
+> rồi nhập lại"** (xoá sạch toàn bộ rồi nhập lại từ đầu — có thêm 1 bước xác
+> nhận riêng vì hành động này không thể hoàn tác).
+
+**Sau khi thử nghiệm xong, trước khi nhập thực đơn thật của quán:** quay lại
+tab "Tổng quan" → mục **"🛠️ Công cụ dữ liệu mẫu (nâng cao)"** (tự thu gọn lại
+khi đã có dữ liệu, để không ai lỡ tay bấm nhầm) → bấm **"🗑️ Xoá toàn bộ dữ
+liệu mẫu"** để dọn sạch 72 món mẫu (có xác nhận tương tự), rồi bắt đầu nhập
+từng món ăn thật ở tab **"Món ăn"**.
+
+Muốn xem trước tên/mô tả/giá của 72 món mẫu trước khi nhập, mở file
+`public/assets/js/seed-data.js` bằng trình soạn thảo bất kỳ — đây cũng chính
+là dữ liệu tự nạp vào chế độ DEMO (localStorage) khi chưa cấu hình Firebase,
+nên nội dung luôn khớp giữa 2 chế độ.
+
+> Cách làm cũ (gõ tay từng món, hoặc tự viết script Admin SDK) vẫn hoạt động
+> nếu bạn muốn — nhưng với 72 món, nút nhập nhanh ở trên tiết kiệm khoảng
+> 1-1.5 giờ so với gõ tay, mà vẫn không cần cài thêm npm hay viết code nào.
 
 ## Bước 8 — Kết nối tên miền barkinglong.pl
 
@@ -299,6 +326,14 @@ nằm gọn trong gói miễn phí, không bao giờ phát sinh chi phí ngoài 
 
 ## Khắc phục sự cố
 
+> **Mẹo:** khi chạy với Firebase thật (không phải DEMO), trang `/admin` tự
+> kiểm tra cấu hình ngay khi tải trang — kể cả TRƯỚC khi đăng nhập — và hiện
+> 1 banner ở đầu trang báo chính xác bằng tiếng Việt nếu thiếu bước nào
+> (config còn để giá trị mẫu, Firestore chưa bật/không đọc được, rules chưa
+> deploy, hay Email/Password chưa bật), kèm luôn cách khắc phục. Nếu gặp bất
+> kỳ lỗi nào bên dưới, hãy xem banner đó trước — thường nó đã chỉ đúng nguyên
+> nhân, đỡ phải dò từng mục thủ công.
+
 **Trang vẫn hiện dữ liệu DEMO (món ăn mẫu) dù đã điền `firebase-config.js`**
 → Kiểm tra lại: apiKey không được chứa chữ `"PASTE_"` nữa (dù chỉ 1 ký tự sai
 cũng khiến hệ thống tưởng chưa cấu hình). Mở lại file, so từng ký tự với đoạn
@@ -308,6 +343,11 @@ code Firebase đưa ra ở Bước 4. Nhớ lưu file trước khi deploy lại.
 → Chưa deploy `firestore.rules`, hoặc chưa đăng nhập đúng tài khoản đã tạo ở
 Bước 3. Chạy lại `firebase deploy --only firestore:rules`. Nếu vẫn lỗi, kiểm
 tra tab "Users" trong Authentication xem tài khoản còn tồn tại không.
+
+**Vừa vào `/admin` (chưa kịp đăng nhập) đã thấy banner đỏ báo lỗi cấu hình**
+→ Đây là tính năng tự kiểm tra (preflight), không phải lỗi phát sinh — đọc kỹ
+dòng "👉" trong banner, nó chỉ đúng bước nào trong Bước 2/3/4/6 ở trên đang
+thiếu hoặc sai. Sửa xong, tải lại trang để banner tự kiểm tra lại.
 
 **Tải ảnh món ăn báo lỗi "Ảnh sau khi nén vẫn quá lớn"**
 → Ảnh gốc quá chi tiết/độ phân giải quá cao khiến sau khi nén WebP vẫn vượt

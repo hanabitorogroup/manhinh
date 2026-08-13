@@ -63,6 +63,7 @@ const state = {
     showHeader: true,
     headerText_pl: "MENU",
     effectsLevel: "full",
+    reloadHour: 4,
     revision: 0,
   },
   items: [],
@@ -782,6 +783,15 @@ function renderLayoutControlsFromSettings() {
   setIfNotFocused($("headerTextInput"), state.settings.headerText_pl || "");
   $("headerTextInput").disabled = state.settings.showHeader === false;
   setIfNotFocused($("currencyInput"), state.settings.currency || "zł");
+  const reloadHour = Number.isFinite(state.settings.reloadHour) ? state.settings.reloadHour : 4;
+  setIfNotFocused($("reloadHourSlider"), reloadHour);
+  $("reloadHourVal").textContent = formatHour(reloadHour);
+}
+
+/** "4" -> "04:00" — hiển thị giờ tự tải lại dễ đọc hơn số trần. */
+function formatHour(h) {
+  const n = Math.min(23, Math.max(0, Math.round(Number(h) || 0)));
+  return `${String(n).padStart(2, "0")}:00`;
 }
 
 function renderLayoutDiagram() {
@@ -854,6 +864,15 @@ function initLayoutTab() {
   $("currencyInput").addEventListener("input", (e) => {
     state.settings.currency = e.target.value;
     debouncedCurrency(e.target.value);
+  });
+
+  const reloadHourSlider = $("reloadHourSlider");
+  const debouncedReloadHour = debounce((val) => saveSettingsPatch({ reloadHour: val }), 400);
+  reloadHourSlider.addEventListener("input", () => {
+    const val = parseInt(reloadHourSlider.value, 10);
+    $("reloadHourVal").textContent = formatHour(val);
+    state.settings.reloadHour = val;
+    debouncedReloadHour(val);
   });
 }
 

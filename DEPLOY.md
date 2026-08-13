@@ -169,6 +169,117 @@ canh giờ thủ công.
 
 ---
 
+## Cài đặt màn hình vật lý (IIYAMA 49.5" 4K, chạy iiSignage)
+
+Phần này dành riêng cho việc setup **4 màn hình signage thật** — IIYAMA
+LH5060UHS-B1AG 49.5", 4K UHD 3840×2160, Android SoC tích hợp, chạy nội dung
+qua ứng dụng **iiSignage** cài sẵn trên máy. Đây là loại màn hình "chạy 24/7,
+không ai đứng canh" — làm đúng các bước dưới đây một lần rồi quên đi.
+
+### Bước A — Trỏ iiSignage vào đúng URL từng màn hình
+
+1. Mở ứng dụng **iiSignage** trên màn hình (thường có sẵn trên màn hình chờ
+   Android hoặc trong danh sách ứng dụng).
+2. Chọn chế độ nguồn nội dung là **"URL / Website / Trình duyệt"** (tuỳ bản
+   iiSignage, tên mục có thể khác đôi chút — tìm mục cho phép nhập 1 địa chỉ
+   web để hiển thị toàn màn hình).
+3. Nhập đúng URL của **đúng 1 màn hình** — không được trỏ nhầm 2 màn vào cùng
+   1 URL, vì đó là lý do khiến món ăn bị trùng lặp giữa các màn hình:
+
+   | Màn hình vật lý | URL nhập vào iiSignage |
+   |---|---|
+   | Màn hình 1 | `https://barkinglong.pl/omh1.html` |
+   | Màn hình 2 | `https://barkinglong.pl/omh2.html` |
+   | Màn hình 3 | `https://barkinglong.pl/omh3.html` |
+   | Màn hình 4 | `https://barkinglong.pl/omh4.html` |
+
+4. Đặt chế độ hiển thị là **toàn màn hình / kiosk** (ẩn thanh địa chỉ, ẩn
+   thanh điều hướng Android) nếu iiSignage có tuỳ chọn này.
+5. Lưu cấu hình, khởi động lại ứng dụng iiSignage (hoặc khởi động lại màn
+   hình) để xác nhận nó tự mở đúng URL sau khi bật nguồn — quan trọng vì màn
+   hình signage thường mất điện đột ngột (dọn dẹp cuối ngày, cúp điện...) và
+   phải tự phục hồi không cần ai bấm gì.
+
+### Bước B — Bật NTP / giờ tự động (BẮT BUỘC)
+
+Hệ thống dùng "đồng hồ tuyệt đối" (mục 3 `ARCHITECTURE.md`) để 4 màn hình lật
+trang cùng lúc, và tính năng tự tải lại ban đêm (`reloadHour`, mặc định
+04:00) cũng dựa vào giờ hệ thống của chính màn hình. Nếu giờ máy sai, cả 2 sẽ
+sai theo — ưu tiên cao:
+
+1. Vào **Cài đặt Android** (Settings) trên màn hình → **Ngày & giờ** (Date &
+   time).
+2. Bật **"Ngày giờ tự động" / "Automatic date & time"** (dùng NTP qua mạng)
+   — KHÔNG đặt tay.
+3. Bật **"Múi giờ tự động" / "Automatic time zone"**, hoặc nếu màn hình không
+   có GPS/định vị, đặt tay múi giờ **Europe/Warsaw (UTC+1, UTC+2 giờ mùa
+   hè)** — đúng múi giờ Ba Lan.
+4. Xác nhận màn hình có kết nối mạng ổn định (WiFi hoặc dây LAN) — NTP cần
+   mạng để đồng bộ, và tất nhiên cả hệ thống cũng cần mạng để tải menu.
+
+### Bước C — Tắt màn hình chờ / chế độ ngủ (BẮT BUỘC)
+
+Màn hình phải sáng liên tục 24/7 (hoặc theo giờ mở cửa quán) — nếu Android
+tự tắt màn hình hoặc bật screensaver, khách sẽ nhìn thấy màn hình đen/logo
+Android thay vì menu:
+
+1. **Cài đặt Android** → **Màn hình** (Display) → **Chế độ chờ / Sleep** →
+   đặt **"Không bao giờ" / "Never"** (hoặc giá trị dài nhất có).
+2. Nếu máy có mục **"Screen saver" / "Daydream"** riêng → **Tắt hẳn**.
+3. Nếu iiSignage có tuỳ chọn "giữ màn hình sáng" (Keep screen on / Wake
+   lock) riêng trong app → bật tuỳ chọn đó thêm cho chắc (2 lớp bảo vệ).
+4. Nếu quán muốn màn hình tắt ngoài giờ mở cửa để tiết kiệm điện, dùng lịch
+   **bật/tắt của chính bảng IIYAMA** (đa số dòng signage LH có lịch bật/tắt
+   phần cứng riêng trong menu OSD của màn hình, độc lập với Android) — KHÔNG
+   dùng chế độ ngủ của Android cho việc này, vì nó dễ treo ứng dụng khi màn
+   hình "ngủ nửa vời".
+
+### Bước D — Việc màn hình tự làm, bạn không cần làm
+
+Hệ thống đã có sẵn các cơ chế tự phục hồi cho phần cứng chạy 24/7 (xem thêm
+`docs/ARCHITECTURE.md`), không cần can thiệp thủ công:
+
+- **Tự tải lại ban đêm**: mỗi ngày, đúng 1 lần vào giờ đặt ở admin (tab
+  **Bố cục** → "Giờ tự tải lại màn hình", mặc định 04:00), màn hình tự
+  `reload` để dọn bộ nhớ trình duyệt tích tụ — không cần ai bấm F5.
+- **Watchdog**: nếu vòng lặp hiển thị bị treo (WebView bị hệ điều hành
+  throttle, hoặc lỗi JS lạ) trong khoảng 90 giây, màn hình tự tải lại.
+- **Đồng bộ lại đồng hồ mỗi giờ**: bù trôi đồng hồ hệ điều hành qua nhiều
+  tuần chạy liên tục, để 4 màn hình không bị lệch nhịp lật trang dần theo
+  thời gian.
+- **Cỡ chữ tự thích ứng độ phân giải**: dù iiSignage/WebView có tôn trọng
+  đúng viewport 1920 khai báo hay không (một số WebView cũ trên SoC yếu bỏ
+  qua), chữ và bố cục vẫn hiển thị đúng tỉ lệ ở 4K.
+
+### Kiểm tra khi 1 màn hình bị "đen" hoặc trắng trơn
+
+Theo thứ tự, dễ kiểm tra trước:
+
+1. **Màn hình đen hoàn toàn (không có gì, kể cả không có ánh sáng nền)** →
+   kiểm tra nguồn điện, cáp HDMI/nguồn của bảng IIYAMA, và xem màn hình có bị
+   lịch bật/tắt phần cứng (OSD) tắt nhầm giờ không (Bước C.4).
+2. **Màn hình sáng nhưng chỉ thấy màn hình chờ Android / launcher** →
+   iiSignage bị thoát hoặc chưa tự khởi động lại — mở lại app, kiểm tra mục
+   "tự khởi động cùng hệ thống" (auto-start on boot) của iiSignage trong cài
+   đặt Android (Apps → iiSignage → cho phép chạy nền / tự khởi động).
+3. **Màn hình trắng trơn, không có chữ gì** → nhiều khả năng nhất là WebView
+   quá cũ (xem mục "Problem 3" — thiết kế đã có "lưới an toàn" sẽ hiện thông
+   báo tiếng Ba Lan kèm phiên bản Chrome phát hiện được thay vì trắng hoàn
+   toàn; nếu vẫn trắng tuyệt đối, WebView có thể quá cũ đến mức không chạy cả
+   script ES5 nền — cần cập nhật WebView qua Google Play Store trên máy, hoặc
+   liên hệ IIYAMA về firmware Android mới hơn).
+4. **Menu hiện đúng nhưng đứng yên, không lật trang** → dùng `?screen=N` để
+   xác nhận đúng số màn hình, sau đó xem watchdog có tự phục hồi sau ~90 giây
+   không; nếu quá lâu vẫn đứng yên, thử tải lại bằng tay 1 lần (khởi động lại
+   iiSignage) rồi theo dõi tiếp — nếu lặp lại thường xuyên, có thể mạng
+   không ổn định (mất kết nối tới Firestore) hoặc WebView bị lỗi ngầm, cân
+   nhắc cập nhật WebView.
+5. **Món ăn bị trùng ở 2 màn hình, hoặc thiếu món** → gần như chắc chắn do
+   nhập nhầm URL ở Bước A (2 màn cùng trỏ 1 `omhN.html`) — kiểm tra lại cấu
+   hình iiSignage của từng màn.
+
+---
+
 ## Giới hạn gói miễn phí (Spark) và vì sao thiết kế nằm trong hạn mức
 
 | Hạn mức Spark (miễn phí) | Dự án này dùng khoảng bao nhiêu |

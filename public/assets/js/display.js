@@ -35,6 +35,17 @@ const RETRY_BASE_MS = 3000;
 const RETRY_MAX_MS = 30000;
 const LAYER_TRANSITION_MS = 800; // khớp với --layer-delay / thời lượng CSS transition dài nhất
 
+// ---------------------------------------------------------------------------
+// Hardening chạy 24/7 (mục "Problem 4" — phần cứng signage yếu, không ai
+// đứng cạnh reset thủ công): tự tải lại đêm để dọn bộ nhớ WebView, watchdog
+// khi vòng lặp render bị treo, và đồng bộ lại đồng hồ server định kỳ để bù
+// trôi đồng hồ Android chạy nhiều tuần không tắt.
+// ---------------------------------------------------------------------------
+const CLOCK_RESYNC_MS = 60 * 60 * 1000; // 1 giờ/lần — đủ bù trôi đồng hồ, không tốn quota Firestore
+const RELOAD_CHECK_MS = 60 * 1000; // kiểm tra mỗi phút có tới đúng "giờ tĩnh lặng" để tự tải lại không
+const WATCHDOG_CHECK_MS = 10 * 1000;
+const WATCHDOG_TIMEOUT_MS = 90 * 1000; // ~90s không "tick" -> coi như treo, tự tải lại
+
 const RESTAURANT_NAME = "Hanabi & Toro";
 const RESTAURANT_TAGLINE = "Sushi i Kuchnia Japońska";
 
@@ -124,7 +135,11 @@ export function bootDisplay(screenId) {
     contentDirty: false,
     offsetMs: 0,
     rafId: null,
+    lastFrameAt: Date.now(), // watchdog: cập nhật mỗi khung hình render
     heartbeatTimer: null,
+    resyncTimer: null,
+    reloadCheckTimer: null,
+    watchdogTimer: null,
     themeApplied: null,
     activeLayer: null, // "A" | "B" | null
     idleShown: null, // null = chưa xác định, true/false = đã set
@@ -160,6 +175,77 @@ export function bootDisplay(screenId) {
     subscribeAll();
     startRotationLoop();
     if (!isPreview) startHeartbeat();
+    startMaintenanceTimers();
+  }
+
+  // ---------------------------------------------------------------------
+  // Hardening 24/7: đồng bộ lại đồng hồ server, tự tải lại đêm, watchdog.
+  // ---------------------------------------------------------------------
+  function startMaintenanceTimers() {
+    // Đồng bộ lại serverOffsetMs mỗi giờ — đồng hồ Android có thể trôi sau
+    // nhiều tuần chạy liên tục, mà 4 màn hình dựa vào offset này để lật trang
+    // cùng lúc (đồng hồ tuyệt đối, mục 3 ARCHITECTURE.md). Bỏ qua ở
+    // ?preview=1 để không tốn thêm quota Firestore cho các iframe xem trước.
+    if (!isPreview) {
+      state.resyncTimer = setInterval(() => {
+        if (typeof DataLayerNS.resyncServerOffset !== "function") return;
+        Promise.resolve(DataLayerNS.resyncServerOffset())
+          .then((off) => {
+            if (typeof off === "number" && Number.isFinite(off)) state.offsetMs = off;
+          })
+          .catch(() => {
+            /* lỗi mạng tạm thời — giữ offset cũ, thử lại ở lần sau */
+          });
+      }, CLOCK_RESYNC_MS);
+    }
+
+    // Tự tải lại 1 lần/ngày đúng giờ settings.reloadHour để dọn bộ nhớ WebView
+    // tích tụ khi chạy 24/7 trên phần cứng signage yếu. KHÔNG chạy ở
+    // ?preview=1 — nếu không sẽ làm reload luôn cả các iframe xem trước trong
+    // trang admin (đang chạy chính omhN.html?preview=1 trong iframe).
+    if (!isPreview) {
+      state.reloadCheckTimer = setInterval(maybeNightlyReload, RELOAD_CHECK_MS);
+    }
+
+    // Watchdog: nếu vòng lặp requestAnimationFrame không "tick" trong ~90s
+    // (WebView bị hệ điều hành throttle nền, hoặc JS bị treo cứng do lỗi lạ)
+    // thì tự tải lại trang — bỏ qua khi document đang ẩn (document hidden),
+    // vì đó là hành vi throttle rAF bình thường của trình duyệt, không phải
+    // treo máy thật.
+    state.watchdogTimer = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      if (Date.now() - state.lastFrameAt > WATCHDOG_TIMEOUT_MS) {
+        location.reload();
+      }
+    }, WATCHDOG_CHECK_MS);
+  }
+
+  /**
+   * Tự tải lại đúng 1 lần/ngày vào settings.reloadHour (giờ địa phương của
+   * chính màn hình, dùng đồng hồ đã bù offset server). Ghi ngày đã tải lại
+   * vào localStorage (theo SCREEN_ID) để đảm bảo CHỈ 1 lần/ngày dù hàm này bị
+   * gọi lại nhiều lần trong đúng khung giờ đó, kể cả sau khi trang tự reload.
+   */
+  function maybeNightlyReload() {
+    const targetHour = state.settings ? state.settings.reloadHour : 4;
+    const now = new Date(Date.now() + state.offsetMs);
+    if (now.getHours() !== targetHour) return;
+
+    const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    const lsKey = `hbt_autoReloadDate_screen${SCREEN_ID}`;
+    let last = null;
+    try {
+      last = localStorage.getItem(lsKey);
+    } catch (e) {
+      /* localStorage có thể bị chặn (chế độ riêng tư...) — chấp nhận rủi ro tải lại thêm lần, không chặn tính năng */
+    }
+    if (last === todayKey) return;
+    try {
+      localStorage.setItem(lsKey, todayKey);
+    } catch (e) {
+      /* bỏ qua — vẫn tải lại dù không ghi được cờ, an toàn hơn là bỏ lỡ */
+    }
+    location.reload();
   }
 
   // ---------------------------------------------------------------------
@@ -229,6 +315,7 @@ export function bootDisplay(screenId) {
       showHeader: s.showHeader !== false,
       headerText_pl: typeof s.headerText_pl === "string" && s.headerText_pl ? s.headerText_pl : "MENU",
       effectsLevel: ["full", "lite", "off"].includes(s.effectsLevel) ? s.effectsLevel : "full",
+      reloadHour: clamp(Math.trunc(numOr(s.reloadHour, 4)), 0, 23),
       revision: numOr(s.revision, 0),
     };
   }
@@ -259,6 +346,7 @@ export function bootDisplay(screenId) {
   function startRotationLoop() {
     function frame() {
       state.rafId = requestAnimationFrame(frame);
+      state.lastFrameAt = Date.now(); // watchdog theo dõi mốc này (xem startMaintenanceTimers)
       updateRotation();
     }
     state.rafId = requestAnimationFrame(frame);

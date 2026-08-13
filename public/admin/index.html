@@ -189,6 +189,17 @@
               <h4>Đơn vị tiền tệ</h4>
               <input type="text" id="currencyInput" placeholder="zł" maxlength="6" />
             </div>
+
+            <div class="control-card">
+              <h4>Giờ tự tải lại màn hình</h4>
+              <div class="slider-row">
+                <input type="range" id="reloadHourSlider" min="0" max="23" step="1" value="4" />
+                <span class="slider-val" id="reloadHourVal">04:00</span>
+              </div>
+              <p class="field-hint">
+                Mỗi ngày, đúng 1 lần vào giờ này (giờ địa phương của màn hình), cả 4 màn hình tự tải lại trang để dọn bộ nhớ trình duyệt tích tụ khi chạy 24/7. Nên chọn giờ quán đóng cửa/vắng khách.
+              </p>
+            </div>
           </div>
 
           <div class="section-title">Sơ đồ phân trang trực quan</div>
@@ -376,6 +387,76 @@
 
 <!-- Ngăn xếp thông báo -->
 <div class="toast-stack" id="toastStack"></div>
+
+<!-- ============================================================
+     LƯỚI AN TOÀN TƯƠNG THÍCH (Problem 3) — thiết bị chạy admin (điện thoại,
+     máy tính cũ...) có thể dùng trình duyệt không hiểu ES module / optional
+     chaining `?.` / nullish coalescing `??` (cần Chromium 80+). Nếu vậy,
+     admin.js lỗi cú pháp âm thầm và người quản trị chỉ thấy TRANG TRẮNG. 2
+     script dưới đây là "bảo hiểm rẻ tiền":
+       1) Script classic (KHÔNG type=module) dùng THUẦN cú pháp ES5 (var,
+          function, không arrow fn/let/const/template literal) để bản thân nó
+          không bao giờ là thứ gây lỗi — tự kiểm tra bằng new Function() xem
+          `?.`/`??` có parse được không.
+       2) <script nomodule> — chỉ chạy trên trình duyệt KHÔNG hiểu
+          type="module" chút nào (tự ẩn ở trình duyệt hiện đại).
+     Nếu tương thích, không có gì hiển thị và luồng cũ chạy y hệt trước đây.
+     ============================================================ -->
+<script>
+(function () {
+  function supportsModernSyntax() {
+    try {
+      new Function("var a = {}; return a?.b ?? 1;");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function chromeVersion(ua) {
+    var m = /Chrome\/([0-9]+)/.exec(ua || "");
+    return m ? m[1] : "?";
+  }
+  window.__hbtShowFallback = function (msg) {
+    if (document.getElementById("hbt-compat-fallback")) return;
+    var ua = (navigator && navigator.userAgent) || "(không đọc được User-Agent)";
+    var ver = chromeVersion(ua);
+    var render = function () {
+      var div = document.createElement("div");
+      div.id = "hbt-compat-fallback";
+      div.setAttribute("style",
+        "position:fixed;inset:0;z-index:2147483647;display:flex;" +
+        "flex-direction:column;align-items:center;justify-content:center;" +
+        "gap:16px;text-align:center;background:#141414;color:#f5f0e6;" +
+        "font-family:Arial,Helvetica,sans-serif;padding:6vw;box-sizing:border-box;");
+      var h = document.createElement("div");
+      h.setAttribute("style", "font-size:min(6vw,32px);font-weight:bold;line-height:1.4;max-width:90vw;");
+      h.appendChild(document.createTextNode(msg));
+      var p = document.createElement("div");
+      p.setAttribute("style", "font-size:min(2.4vw,15px);opacity:.65;max-width:90vw;word-break:break-word;");
+      p.appendChild(document.createTextNode("Chrome " + ver + " — " + ua));
+      div.appendChild(h);
+      div.appendChild(p);
+      document.body.appendChild(div);
+    };
+    if (document.body) render();
+    else document.addEventListener("DOMContentLoaded", render);
+  };
+  if (!supportsModernSyntax()) {
+    window.__hbtShowFallback(
+      "Trình duyệt trên thiết bị này quá cũ để chạy trang quản trị (cần Chrome phiên bản 80 trở lên). Vui lòng báo bộ phận kỹ thuật kèm thông tin bên dưới, hoặc mở trang này bằng trình duyệt Chrome mới hơn."
+    );
+  }
+})();
+</script>
+<script nomodule>
+(function () {
+  if (window.__hbtShowFallback) {
+    window.__hbtShowFallback(
+      "Trình duyệt trên thiết bị này không hỗ trợ công nghệ bắt buộc của trang (ES Modules). Vui lòng cập nhật trình duyệt hoặc báo bộ phận kỹ thuật kèm thông tin bên dưới."
+    );
+  }
+})();
+</script>
 
 <script type="module" src="admin.js"></script>
 </body>

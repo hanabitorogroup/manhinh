@@ -17,6 +17,37 @@ const CAPS = {
   off: 0,
 };
 
+// ---------------------------------------------------------------------------
+// Giới hạn tải cho SoC yếu chạy 24/7 trên màn hình signage 4K (Cortex-A55,
+// GPU tối thiểu) — xem ghi chú "PHẦN CỨNG THẬT" ở đầu file.
+// ---------------------------------------------------------------------------
+
+/** Kích thước bộ đệm canvas (pixel thật) tối đa, bất kể viewport/DPR báo cáo
+ * là bao nhiêu. Hạt là các hình mờ/mềm (chấm tuyết, cánh hoa, tia lửa…) nên
+ * phóng to bộ đệm nhỏ lên bằng CSS không lộ răng cưa — nhưng vẽ 4K (3840x2160)
+ * mỗi khung hình, mãi mãi, thì SoC yếu không chịu nổi. */
+const MAX_BACKING_W = 1920;
+const MAX_BACKING_H = 1080;
+
+/** Giới hạn khung hình/giây — hạt không cần mượt 60fps, 30fps đã đủ mắt
+ * thường không phân biệt được, mà giảm ~một nửa số lần step()+draw() mỗi
+ * giây, đỡ tải CPU/GPU đáng kể khi chạy liên tục nhiều tuần. */
+const TARGET_FPS = 30;
+const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
+
+/** Viewport CSS rộng hơn ngưỡng này (vd WebView bỏ qua <meta viewport>, trả
+ * về 3840 CSS px thay vì 1920) thì giảm bớt số hạt "full" — ưu tiên hiệu năng
+ * hơn mật độ hạt tối đa trên màn 4K chạy 24/7. */
+const LARGE_VIEWPORT_CSS_WIDTH = 2400;
+const LARGE_VIEWPORT_CAP_SCALE = 0.6;
+
+function scaleCapForViewport(baseCap, cssWidth) {
+  if (cssWidth > LARGE_VIEWPORT_CSS_WIDTH) {
+    return Math.max(8, Math.round(baseCap * LARGE_VIEWPORT_CAP_SCALE));
+  }
+  return baseCap;
+}
+
 /** Trạng thái module — chỉ một hệ hạt chạy tại một thời điểm (đúng theo hợp đồng 1 canvas #fx) */
 let state = null;
 
@@ -159,8 +190,9 @@ export function startParticles(canvas, type, level) {
     particles: [],
     rafId: null,
     lastT: performance.now(),
+    lastDrawT: performance.now(),
     running: true,
-    dpr: Math.max(1, Math.min(window.devicePixelRatio || 1, 2)),
+    bufScale: 1, // tỉ lệ bộ đệm canvas / kích thước CSS thật — xem resize()
     w: 0,
     h: 0,
     spawnAcc: 0,
@@ -174,9 +206,18 @@ export function startParticles(canvas, type, level) {
     const rect = canvas.getBoundingClientRect();
     s.w = Math.max(1, rect.width || window.innerWidth);
     s.h = Math.max(1, rect.height || window.innerHeight);
-    canvas.width = Math.round(s.w * s.dpr);
-    canvas.height = Math.round(s.h * s.dpr);
-    ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    const rawDpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    // Chặn bộ đệm canvas ở tối đa ~1920x1080 dù DPR/viewport báo cáo lớn hơn
+    // (vd 4K, hoặc WebView bỏ qua <meta viewport>) — CSS vẫn kéo giãn canvas
+    // lấp đầy màn hình (#fx có width/height:100%), chỉ số pixel THẬT phải vẽ
+    // mỗi khung hình là bị giới hạn. Xem ghi chú MAX_BACKING_W/H đầu file.
+    s.bufScale = Math.max(0.1, Math.min(rawDpr, MAX_BACKING_W / s.w, MAX_BACKING_H / s.h));
+    canvas.width = Math.round(s.w * s.bufScale);
+    canvas.height = Math.round(s.h * s.bufScale);
+    ctx.setTransform(s.bufScale, 0, 0, s.bufScale, 0, 0);
+    // Viewport càng rộng (vd 3840 CSS px khi WebView bỏ qua meta viewport) thì
+    // càng giảm số hạt "full" — xem ghi chú LARGE_VIEWPORT_* đầu file.
+    s.cap = scaleCapForViewport(cap, s.w);
   }
   resize();
   s.onResize = resize;
@@ -186,7 +227,7 @@ export function startParticles(canvas, type, level) {
   if (type !== "fireworks") {
     const factory = factoryFor(type);
     if (factory) {
-      for (let i = 0; i < cap; i++) {
+      for (let i = 0; i < s.cap; i++) {
         const p = factory(s.w, s.h);
         p.y = rand(0, s.h); // rải đều ban đầu thay vì tất cả ở mép
         s.particles.push(p);
@@ -205,7 +246,12 @@ export function startParticles(canvas, type, level) {
 
   function frame(t) {
     s.rafId = requestAnimationFrame(frame);
-    if (!s.running) { s.lastT = t; return; }
+    if (!s.running) { s.lastT = t; s.lastDrawT = t; return; }
+    // Giữ nhịp ~30fps: bỏ qua khung hình nếu chưa đủ FRAME_INTERVAL_MS kể từ
+    // lần vẽ trước, thay vì step()+draw() ở đủ 60fps của rAF. dt vật lý vẫn
+    // tính theo thời gian THẬT trôi qua nên tốc độ hạt không đổi khi bỏ khung.
+    if (t - s.lastDrawT < FRAME_INTERVAL_MS) return;
+    s.lastDrawT = t;
     const dt = Math.min(0.05, (t - s.lastT) / 1000); // giới hạn dt tránh nhảy khi tab quay lại
     s.lastT = t;
     step(s, dt);

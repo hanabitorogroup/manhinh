@@ -17,6 +17,77 @@
     </div>
     <div id="conn-error" class="conn-banner" hidden></div>
   </div>
+
+  <!-- ============================================================
+       LƯỚI AN TOÀN TƯƠNG THÍCH (Problem 3) — WebView cũ trên phần cứng
+       signage thật có thể không hiểu ES module / optional chaining `?.` /
+       nullish coalescing `??` (cần Chromium 80+). Nếu vậy, script module bên
+       dưới lỗi cú pháp âm thầm và khách chỉ thấy MÀN HÌNH TRẮNG — tệ nhất có
+       thể xảy ra. 2 script dưới đây là "bảo hiểm rẻ tiền":
+         1) Script classic (KHÔNG type=module) dùng THUẦN cú pháp ES5 (var,
+            function, không arrow fn/let/const/template literal) để bản thân
+            nó không bao giờ là thứ gây lỗi — tự kiểm tra bằng new Function()
+            xem `?.`/`??` có parse được không.
+         2) <script nomodule> — chỉ chạy trên trình duyệt KHÔNG hiểu
+            type="module" chút nào (tự ẩn ở trình duyệt hiện đại).
+       Nếu tương thích, không có gì hiển thị và luồng cũ chạy y hệt trước đây.
+       ============================================================ -->
+  <script>
+  (function () {
+    function supportsModernSyntax() {
+      try {
+        new Function("var a = {}; return a?.b ?? 1;");
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    function chromeVersion(ua) {
+      var m = /Chrome\/([0-9]+)/.exec(ua || "");
+      return m ? m[1] : "?";
+    }
+    window.__hbtShowFallback = function (msg) {
+      if (document.getElementById("hbt-compat-fallback")) return;
+      var ua = (navigator && navigator.userAgent) || "(brak danych User-Agent)";
+      var ver = chromeVersion(ua);
+      var render = function () {
+        var div = document.createElement("div");
+        div.id = "hbt-compat-fallback";
+        div.setAttribute("style",
+          "position:fixed;inset:0;z-index:2147483647;display:flex;" +
+          "flex-direction:column;align-items:center;justify-content:center;" +
+          "gap:16px;text-align:center;background:#0a0a0a;color:#f5f0e6;" +
+          "font-family:Arial,Helvetica,sans-serif;padding:6vw;box-sizing:border-box;");
+        var h = document.createElement("div");
+        h.setAttribute("style", "font-size:min(6vw,44px);font-weight:bold;line-height:1.35;max-width:90vw;");
+        h.appendChild(document.createTextNode(msg));
+        var p = document.createElement("div");
+        p.setAttribute("style", "font-size:min(2.2vw,18px);opacity:.65;max-width:90vw;word-break:break-word;");
+        p.appendChild(document.createTextNode("Chrome " + ver + " — " + ua));
+        div.appendChild(h);
+        div.appendChild(p);
+        document.body.appendChild(div);
+      };
+      if (document.body) render();
+      else document.addEventListener("DOMContentLoaded", render);
+    };
+    if (!supportsModernSyntax()) {
+      window.__hbtShowFallback(
+        "Ten ekran wymaga nowszej przeglądarki (Chrome 80 lub nowszy), aby wyświetlić menu. Zgłoś ten komunikat wraz z poniższymi danymi do obsługi technicznej."
+      );
+    }
+  })();
+  </script>
+  <script nomodule>
+  (function () {
+    if (window.__hbtShowFallback) {
+      window.__hbtShowFallback(
+        "Ten ekran nie obsługuje wymaganej technologii przeglądarki (moduły JavaScript). Zgłoś ten komunikat wraz z poniższymi danymi do obsługi technicznej."
+      );
+    }
+  })();
+  </script>
+
   <script type="module">
     import { bootDisplay } from './assets/js/display.js';
     bootDisplay(1);

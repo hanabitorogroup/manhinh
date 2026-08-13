@@ -20,6 +20,23 @@
      --font-heading     font tiêu đề (tên món, logo)
      --font-body         font nội dung (mô tả)
      --overlay-image    ảnh trang trí phủ nền, có thể "none"
+
+   ---------------------------------------------------------------------------
+   ĐỘC LẬP ĐỘ PHÂN GIẢI (quan trọng — đọc trước khi sửa kích thước bất kỳ đâu):
+   Phần cứng thật (IIYAMA 49.5" 4K) chạy WebView trên SoC yếu, phiên bản
+   Chromium cũ, và KHÔNG đảm bảo tôn trọng `<meta name="viewport" content=
+   "width=1920">` khai báo trong omhN.html. Nếu WebView tôn trọng: layout ở
+   1920 CSS px, DPR 2 — đúng như thiết kế gốc. Nếu KHÔNG tôn trọng: layout ở
+   3840 CSS px, DPR 1 — toàn bộ `clamp()` kiểu cũ (chỉ dùng đơn vị px cứng cho
+   min/max) sẽ bị kẹt ở giá trị max, chữ nhỏ hơn thật ~40%.
+
+   Cách khắc phục: `html { font-size: ... }` bên dưới co giãn tuyến tính theo
+   100vw (16px ở 1920, 32px ở 3840, đúng tỉ lệ DPR giả định trong thiết kế
+   gốc) — nhờ vậy MỌI min/max viết bằng `rem` cũng co giãn theo, không còn bị
+   "kẹp" ở độ phân giải cao. Vì vậy toàn bộ min/max trong clamp() ở file này
+   PHẢI dùng `rem`, không được dùng `px` cứng (trừ những chỗ cố ý nhỏ/trang trí
+   không ảnh hưởng độ dễ đọc, có ghi chú riêng). Giá trị vw/vh ở giữa clamp()
+   giữ nguyên vì bản thân chúng đã co giãn đúng theo viewport rồi.
    ========================================================================== */
 
 /* ---------- Reset & nền tổng ---------------------------------------------- */
@@ -27,6 +44,18 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+html {
+  /* Cỡ chữ gốc co giãn tuyến tính theo chiều rộng viewport thật (100vw),
+     KHÔNG phụ thuộc việc WebView có tôn trọng <meta viewport width=1920> hay
+     không — 1920px viewport -> 16px (giống mặc định trình duyệt, không đổi
+     hành vi cũ), 3840px viewport -> 32px (đúng DPR 2 giả định trong thiết kế
+     gốc nếu WebView bỏ qua meta viewport và trả về CSS px = px vật lý).
+     clamp() có sàn/trần chỉ để không vỡ layout khi test ở cửa sổ rất nhỏ hoặc
+     rất lớn — 2 độ phân giải mục tiêu thật (1920, 3840) không bao giờ chạm 2
+     đầu này. */
+  font-size: clamp(12px, calc(100vw / 120), 40px);
 }
 
 html,
@@ -120,7 +149,7 @@ body::-webkit-scrollbar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(10px, 1.6vh, 26px) 0 clamp(4px, 1vh, 14px);
+  padding: clamp(0.625rem, 1.6vh, 1.625rem) 0 clamp(0.25rem, 1vh, 0.875rem);
   font-family: var(--font-heading);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -149,8 +178,8 @@ body::-webkit-scrollbar {
   grid-template-rows: repeat(2, 1fr);
   grid-auto-rows: 1fr;
   grid-auto-flow: dense; /* lưới đặc — phòng thủ nếu số món ngoài dải 1..6 dự kiến */
-  gap: clamp(10px, 1.3vw, 26px);
-  padding: clamp(10px, 1.4vw, 30px);
+  gap: clamp(0.625rem, 1.3vw, 1.625rem);
+  padding: clamp(0.625rem, 1.4vw, 1.875rem);
   --layer-delay: 0.7s;
   backface-visibility: hidden;
 }
@@ -217,7 +246,7 @@ body::-webkit-scrollbar {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  border-radius: clamp(10px, 1vw, 20px);
+  border-radius: clamp(0.625rem, 1vw, 1.25rem);
   background: var(--card-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, .35); /* độ nổi trung tính, không thuộc theme */
   animation: cardEnter .6s cubic-bezier(.2,.8,.2,1) both;
@@ -273,7 +302,7 @@ body::-webkit-scrollbar {
   right: 0;
   bottom: 0;
   z-index: 2;
-  padding: clamp(12px, 1.6vw, 30px) clamp(12px, 1.4vw, 26px) clamp(10px, 1.2vw, 20px);
+  padding: clamp(0.75rem, 1.6vw, 1.875rem) clamp(0.75rem, 1.4vw, 1.625rem) clamp(0.625rem, 1.2vw, 1.25rem);
   background: linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.42) 55%, rgba(0,0,0,0) 100%);
   display: flex;
   flex-direction: column;
@@ -320,9 +349,9 @@ body::-webkit-scrollbar {
 /* Ribbon góc (badge NOWOŚĆ / HIT / PROMOCJA…) */
 .ribbon {
   position: absolute;
-  top: clamp(14px, 2vw, 26px);
-  right: clamp(-42px, -4vw, -32px);
-  width: clamp(130px, 15vw, 190px);
+  top: clamp(0.875rem, 2vw, 1.625rem);
+  right: clamp(-2.625rem, -4vw, -2rem);
+  width: clamp(8.125rem, 15vw, 11.875rem);
   z-index: 3;
   transform: rotate(38deg);
   transform-origin: center;
@@ -347,7 +376,7 @@ body::-webkit-scrollbar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(10px, 1.6vh, 22px);
+  gap: clamp(0.625rem, 1.6vh, 1.375rem);
   text-align: center;
 }
 .idle-screen[hidden] { display: none; }
@@ -379,7 +408,7 @@ body::-webkit-scrollbar {
 .conn-banner {
   position: absolute;
   left: 50%;
-  bottom: clamp(10px, 2vh, 26px);
+  bottom: clamp(0.625rem, 2vh, 1.625rem);
   transform: translateX(-50%);
   z-index: 5;
   padding: .5em 1.2em;

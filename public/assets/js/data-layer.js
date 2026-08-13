@@ -48,6 +48,11 @@ const DEFAULT_SETTINGS = {
   showHeader: true,
   headerText_pl: "MENU",
   effectsLevel: "full",
+  // Giờ (0-23, giờ địa phương của màn hình) tự tải lại trang 1 lần/ngày để dọn
+  // bộ nhớ WebView tích tụ khi chạy 24/7 trên phần cứng signage yếu — xem
+  // maybeNightlyReload() trong display.js. Mặc định 4 (04:00 sáng, ngoài giờ
+  // phục vụ của hầu hết quán ăn).
+  reloadHour: 4,
   revision: 0,
   updatedAt: null,
 };
@@ -277,6 +282,26 @@ export function initData() {
 
 /** @returns {number} độ lệch (ms) giữa Date.now() cục bộ và giờ server. */
 export function getServerOffsetMs() {
+  return _serverOffsetMs;
+}
+
+/**
+ * Tính lại serverOffsetMs — dùng để bù trôi đồng hồ hệ điều hành (đặc biệt
+ * Android chạy 24/7 nhiều tuần không tắt) sau initData() ban đầu. GHI CHÚ:
+ * không nằm trong bảng "API bắt buộc" mục 4 ARCHITECTURE.md (giống onMedia/
+ * resolveImage) — nơi gọi (display.js) dùng namespace import + kiểm tra
+ * `typeof === 'function'` trước khi gọi, không import trực tiếp bằng tên, để
+ * không vỡ liên kết module nếu một agent khác đang sửa file này song song.
+ * @returns {Promise<number>} offset mới (ms)
+ */
+export async function resyncServerOffset() {
+  if (DEMO) return _serverOffsetMs; // DEMO chạy 100% phía client, không có "server" riêng để lệch
+  try {
+    const { db, mods } = await loadFirebase();
+    _serverOffsetMs = await computeServerOffset(db, mods.firestore);
+  } catch (e) {
+    console.error("[data-layer] Không đồng bộ lại được serverOffsetMs, giữ giá trị cũ:", e);
+  }
   return _serverOffsetMs;
 }
 

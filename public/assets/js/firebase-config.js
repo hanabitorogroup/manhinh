@@ -23,12 +23,12 @@
 // =============================================================================
 
 export const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE", // vd: "ten-du-an.firebaseapp.com"
-  projectId: "PASTE_YOUR_PROJECT_ID_HERE",
-  storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE", // vd: "ten-du-an.appspot.com"
-  messagingSenderId: "PASTE_YOUR_SENDER_ID_HERE",
-  appId: "PASTE_YOUR_APP_ID_HERE",
+  apiKey: "AIzaSyAD755HSZbJihMKIN0BlYTrsS-6eKncjRc",
+  authDomain: "manhinh-olawa.firebaseapp.com",
+  projectId: "manhinh-olawa",
+  storageBucket: "manhinh-olawa.firebasestorage.app",
+  messagingSenderId: "88947584570",
+  appId: "1:88947584570:web:aa31285aa22b0b3e7ecf03",
 };
 
 // DEMO_MODE = true khi firebase-config.js CHƯA được điền (còn giá trị mẫu).

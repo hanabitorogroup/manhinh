@@ -12,6 +12,7 @@
 
 import * as DataLayer from "../assets/js/data-layer.js";
 import { THEMES } from "../assets/js/themes.js";
+import { computeAllScreensLayout } from "../assets/js/pagination.js";
 
 const {
   initData,
@@ -189,8 +190,8 @@ function showConfirm(title, message, okLabel = "Đồng ý") {
 }
 
 /* =============================================================================
-   Thuật toán phân trang (mục 3 ARCHITECTURE.md) — dùng chung cho tab Tổng quan
-   và tab Bố cục để đảm bảo hai nơi luôn khớp nhau.
+   Sắp xếp danh sách món cho tab "Món ăn" (bảng CRUD + kéo-thả) — theo
+   (order asc, name_pl asc), giống thứ tự toàn cục dùng khi phân trang.
    ========================================================================== */
 function sortItems(items) {
   return [...items].sort((a, b) => {
@@ -200,60 +201,22 @@ function sortItems(items) {
   });
 }
 
-function chunk(arr, size) {
-  const out = [];
-  const n = Math.max(1, size);
-  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-  return out;
-}
-
 /**
- * Trả về { screens: {1:[{pageNo,items}],2:[...],3:[...],4:[...]}, totalPages }
- * đúng thuật toán mục 3. Với distribution="manual": món screenLock=0 (tự động)
- * KHÔNG được hợp đồng mô tả rõ cách xử lý — xem ghi chú bên dưới.
+ * Trả về { screens: {1:[{pageNo,items}],2:[...],3:[...],4:[...]}, totalPages,
+ * itemsPerPage } cho tab Tổng quan + tab Bố cục.
+ *
+ * Đây CHỈ là một wrapper mỏng quanh computeAllScreensLayout() của
+ * ../assets/js/pagination.js — module đó mới là NGUỒN DUY NHẤT của thuật
+ * toán phân trang (mục 3 ARCHITECTURE.md), dùng chung với display.js (nơi
+ * thực sự render 4 màn hình). Trước đây admin tự cài một bản round-robin
+ * riêng cho nhóm món "trôi nổi" ở chế độ thủ công, lệch với display.js và
+ * khiến sơ đồ Bố cục KHÔNG khớp với 4 màn hình thật — đã sửa bằng cách xoá
+ * bản cài lại đó và gọi thẳng module dùng chung. KHÔNG được cài lại thuật
+ * toán phân trang ở file này; mọi thay đổi thuật toán phải sửa ở
+ * pagination.js để display.js và admin.js luôn đồng thuận.
  */
 function computeLayout(items, settings) {
-  const itemsPerPage = Math.min(6, Math.max(4, settings.itemsPerPage || 6));
-  const visible = sortItems(items.filter((it) => it.visible !== false));
-  const screens = { 1: [], 2: [], 3: [], 4: [] };
-  let totalPages = 0;
-
-  if (settings.distribution === "manual") {
-    const locked = { 1: [], 2: [], 3: [], 4: [] };
-    const unassigned = [];
-    visible.forEach((it) => {
-      const lock = Number(it.screenLock) || 0;
-      if (lock >= 1 && lock <= 4) locked[lock].push(it);
-      else unassigned.push(it);
-    });
-    for (let n = 1; n <= 4; n++) {
-      screens[n] = chunk(locked[n], itemsPerPage).map((pageItems) => ({ items: pageItems }));
-    }
-    // GHI CHÚ — HỢP ĐỒNG CHƯA RÕ: mục 3 chỉ mô tả "món có screenLock = N chỉ lên
-    // màn hình N; nhóm theo màn rồi chunk trong từng nhóm" cho chế độ thủ công,
-    // không nói rõ món screenLock = 0 (tự động) đi đâu khi distribution=manual.
-    // Giả định hợp lý được chọn ở đây: các trang "chưa ghim" được rải theo kiểu
-    // round-robin vào màn đang có ÍT trang nhất, để không món nào biến mất khỏi
-    // menu chỉ vì quên ghim màn hình.
-    chunk(unassigned, itemsPerPage).forEach((pageItems) => {
-      let target = 1;
-      for (let n = 2; n <= 4; n++) if (screens[n].length < screens[target].length) target = n;
-      screens[target].push({ items: pageItems });
-    });
-    for (let n = 1; n <= 4; n++) {
-      screens[n].forEach((p, idx) => { p.pageNo = idx + 1; });
-      totalPages += screens[n].length;
-    }
-  } else {
-    const pages = chunk(visible, itemsPerPage);
-    totalPages = pages.length;
-    const perScreen = pages.length ? Math.ceil(pages.length / 4) : 0;
-    for (let n = 1; n <= 4; n++) {
-      const slice = perScreen > 0 ? pages.slice((n - 1) * perScreen, n * perScreen) : [];
-      screens[n] = slice.map((pageItems, idx) => ({ pageNo: (n - 1) * perScreen + idx + 1, items: pageItems }));
-    }
-  }
-  return { screens, totalPages, itemsPerPage };
+  return computeAllScreensLayout(items, settings);
 }
 
 /* =============================================================================

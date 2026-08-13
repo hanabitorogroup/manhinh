@@ -126,6 +126,13 @@ body {
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
+  /* .app-shell là CSS grid 2 cột. Banner phải chiếm TRỌN CHIỀU RỘNG (cả 2 cột)
+     ở hàng đầu — nếu không, lưới tự động xếp banner vào ô (hàng 1, cột 1) rồi
+     đẩy sidebar vào (hàng 1, cột 2) và toàn bộ nội dung .app-main xuống (hàng 2,
+     cột 1), khiến khu vực nội dung bị nhồi vào đúng bề rộng cột sidebar (240px)
+     và trống trơn bên phải — chỉ xảy ra khi banner DEMO đang hiển thị (mục 4
+     ARCHITECTURE.md, chế độ DEMO_MODE). */
+  grid-column: 1 / -1;
 }
 .demo-banner strong { color: #fff2d9; }
 

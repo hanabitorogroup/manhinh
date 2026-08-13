@@ -149,7 +149,11 @@ export function applyTheme(rootEl, theme) {
   rootEl.style.setProperty("--bg", theme.bg || "#000000");
   rootEl.style.setProperty("--text", theme.textColor || "#ffffff");
   rootEl.style.setProperty("--outline", theme.outlineColor || "#000000");
-  rootEl.style.setProperty("--outline-w", `${outlineWidth}px`);
+  // Ghi SỐ THÔ, không đơn vị — "px ở màn 1920 CSS px" theo đúng đơn vị admin
+  // đang nhập (xem numberFieldHtml("outlineWidth", ...) trong admin.js).
+  // display.css tự quy đổi sang rem tại điểm dùng (--outline-w) để viền chữ
+  // phóng to đúng tỉ lệ với chữ ở 4K — KHÔNG ghi "px" cứng ở đây nữa.
+  rootEl.style.setProperty("--outline-w-base", String(outlineWidth));
   rootEl.style.setProperty("--accent", theme.accent || "#e63946");
   rootEl.style.setProperty("--price", theme.priceColor || "#ffd166");
   rootEl.style.setProperty("--card-bg", theme.cardBg || "rgba(0,0,0,.35)");

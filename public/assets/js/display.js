@@ -49,21 +49,55 @@ const WATCHDOG_TIMEOUT_MS = 90 * 1000; // ~90s không "tick" -> coi như treo, t
 const RESTAURANT_NAME = "Hanabi & Toro";
 const RESTAURANT_TAGLINE = "Sushi i Kuchnia Japońska";
 
-// Glyph (emoji hệ thống) hiển thị cho món chưa có ảnh, không cần font ngoài
-const CATEGORY_GLYPH = {
-  ramen: "🍜",
-  sushi: "🍣",
-  sashimi: "🍣",
-  donburi: "🍚",
-  grill: "🍢",
-  yakitori: "🍢",
-  dessert: "🍡",
-  drink: "🍵",
-  napoje: "🍵",
-  soup: "🥣",
-  zupa: "🥣",
-  curry: "🍛",
-  default: "🍽",
+// Glyph hiển thị cho món chưa có ảnh — SVG line-art nội tuyến vẽ bằng
+// `currentColor` (không phải emoji bitmap). Emoji hệ thống là ảnh bitmap có độ
+// phân giải cố định do font emoji của OS quyết định; phóng to ở màn 4K (kích
+// thước CSS clamp() lớn hơn nhưng bitmap gốc thì không đổi) làm lộ răng cưa/
+// khối vuông rất rõ khi đứng gần. SVG là vector nên luôn sắc nét ở mọi độ
+// phân giải, và `stroke="currentColor"` khiến glyph tự động ăn theo màu theme
+// (giống hệt cách chữ dùng var(--text)) thay vì màu emoji cố định của hệ điều
+// hành. Mỗi icon chỉ là phần <path>/<circle> bên trong — khung <svg> dùng
+// chung được ghép trong glyphFor() để đồng nhất stroke-width/viewBox.
+const CATEGORY_GLYPH_ICONS = {
+  // Tô ramen: vành tô + hơi nóng bốc lên — dùng chung cho súp nói chung.
+  bowlSteam: `<path d="M7 21h34" stroke-width="2.7"/><path d="M8 21c0 9.5 6.9 16 16 16s16-6.5 16-16"/><path d="M17 9c-1.6 2-1.6 4.3 0 6.3" stroke-width="2"/><path d="M24 7c-1.6 2-1.6 4.3 0 6.3" stroke-width="2"/><path d="M31 9c-1.6 2-1.6 4.3 0 6.3" stroke-width="2"/>`,
+  // Nigiri sushi: mô cơm + dải rong biển + lát topping cong phía trên.
+  sushi: `<path d="M10 33c0-7.2 6.3-12.5 14-12.5s14 5.3 14 12.5c0 4.6-6.3 6-14 6s-14-1.4-14-6z"/><path d="M10.6 29.4h26.8"/><path d="M15 20c2.7-2.8 5.9-4.3 9-4.3s6.3 1.5 9 4.3"/>`,
+  // Donburi: tô cơm thấp + đôi đũa gác ngang miệng tô.
+  donburi: `<path d="M8 23h32" stroke-width="2.7"/><path d="M9 23c0 8.6 6.4 14.5 15 14.5s15-5.9 15-14.5"/><path d="M17.6 20.4c2-2.6 4.2-3.8 6.4-3.8s4.4 1.2 6.4 3.8"/><path d="M13 12l23 8"/><path d="M15 10l23 8"/>`,
+  // Món khai vị kiểu xiên nướng: đĩa tròn + xiên que với các viên tròn.
+  skewer: `<ellipse cx="24" cy="33.6" rx="15.4" ry="5"/><path d="M9.5 15l28 19"/><circle cx="16.2" cy="19.5" r="2.7"/><circle cx="24.4" cy="25.1" r="2.7"/><circle cx="32.6" cy="30.7" r="2.7"/>`,
+  // Dango tráng miệng: que xiên + 3 viên tròn xếp chồng.
+  dango: `<path d="M24 6v36" stroke-width="2.4"/><circle cx="24" cy="15" r="5.6"/><circle cx="24" cy="24" r="5.6"/><circle cx="24" cy="33" r="5.6"/>`,
+  // Ly đồ uống: ly thon + vạch mực nước + ống hút chéo.
+  drink: `<path d="M15 11h18l-2.6 25.3a3.2 3.2 0 01-3.18 2.8h-6.44a3.2 3.2 0 01-3.18-2.8z"/><path d="M16.3 22.6h15.4"/><path d="M29 11l4.6-6"/>`,
+  // Mặc định (không rõ danh mục): đĩa tròn tối giản, sang trọng, trung tính.
+  plate: `<circle cx="24" cy="24" r="16.5"/><circle cx="24" cy="24" r="9"/>`,
+};
+
+// Ánh xạ danh mục món (field `category` trong Firestore, xem seed-data.js và
+// ARCHITECTURE.md mục 2) sang icon phía trên. Giữ nguyên các bí danh cũ
+// (donburi/grill/yakitori/dessert/drink/soup/zupa/curry) đồng thời khớp đúng
+// các giá trị category thật admin/seed-data đang dùng (don, przystawki,
+// desery, napoje) — trước đây các giá trị thật này không khớp key nào nên
+// luôn rơi vào glyph mặc định, nay được phân biệt đúng theo danh mục.
+const CATEGORY_GLYPH_KEY = {
+  ramen: "bowlSteam",
+  soup: "bowlSteam",
+  zupa: "bowlSteam",
+  sushi: "sushi",
+  sashimi: "sushi",
+  donburi: "donburi",
+  don: "donburi",
+  curry: "donburi",
+  grill: "skewer",
+  yakitori: "skewer",
+  przystawki: "skewer",
+  dessert: "dango",
+  desery: "dango",
+  drink: "drink",
+  napoje: "drink",
+  default: "plate",
 };
 
 const FALLBACK_THEME = {
@@ -464,7 +498,14 @@ export function bootDisplay(screenId) {
 
   function glyphFor(category) {
     const key = String(category || "").toLowerCase();
-    return CATEGORY_GLYPH[key] || CATEGORY_GLYPH.default;
+    const iconKey = CATEGORY_GLYPH_KEY[key] || CATEGORY_GLYPH_KEY.default;
+    const inner = CATEGORY_GLYPH_ICONS[iconKey] || CATEGORY_GLYPH_ICONS.plate;
+    // fill="none" + stroke="currentColor" trên <svg> gốc được mọi phần tử con
+    // (path/circle/ellipse) kế thừa qua CSS presentation attribute — không
+    // cần lặp lại trên từng path. currentColor ăn theo `color` của
+    // .placeholder-glyph (đặt bằng var(--text) trong display.css) nên đổi
+    // theme là glyph đổi màu theo, giống hệt outline chữ.
+    return `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
   }
 
   function formatPrice(price, suffix, currency) {

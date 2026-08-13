@@ -13,7 +13,16 @@
      --bg-gradient      gradient nền phụ (background-image), có thể "none"
      --text             màu chữ chính
      --outline          màu viền chữ (tên món / logo)
-     --outline-w        độ dày viền chữ, có đơn vị (vd "2px")
+     --outline-w-base   độ dày viền chữ, SỐ KHÔNG ĐƠN VỊ tính bằng "px ở màn
+                         1920 CSS px" (vd 2 nghĩa là "2px khi viewport rộng
+                         1920"). applyTheme() ghi số thô đúng như admin nhập —
+                         KHÔNG tự nhân đôi cho 4K. Việc co giãn theo độ phân
+                         giải xảy ra ngay dưới đây, ở --outline-w (suy ra bằng
+                         rem), để viền chữ luôn dày tỉ lệ đúng với chữ dù
+                         WebView có tôn trọng <meta viewport> hay không.
+     --outline-w        (suy ra, không do applyTheme() ghi) độ dày viền chữ
+                         thật sự dùng trong -webkit-text-stroke — xem công
+                         thức trong khối #app bên dưới, đừng ghi đè trực tiếp
      --accent           màu nhấn (ribbon, viền, hiệu ứng)
      --price            màu nổi bật cho badge giá
      --card-bg           nền thẻ món (thường là rgba mờ)
@@ -90,7 +99,14 @@ body::-webkit-scrollbar {
   --bg-gradient: none;
   --text: #f5f0e6;
   --outline: #000000;
-  --outline-w: 2px;
+  /* --outline-w-base: số px viền chữ "thiết kế ở 1920 CSS px" — applyTheme()
+     ghi số thô admin nhập (đơn vị trực quan, KHÔNG phải rem) tại đây.
+     --outline-w: quy đổi sang rem tại điểm dùng — html { font-size } ở trên co
+     giãn 16px (1920w) -> 32px (3840w), nên chia cho 16 rồi nhân 1rem khiến độ
+     dày viền phóng to ĐÚNG TỈ LỆ với chữ ở 4K thay vì đứng yên theo px cứng.
+     0 vẫn cho ra 0rem -> -webkit-text-stroke width 0 -> không viền, như cũ. */
+  --outline-w-base: 2;
+  --outline-w: calc(var(--outline-w-base) * 1rem / 16);
   --accent: #c0392b;
   --price: #ffd166;
   --card-bg: rgba(0, 0, 0, 0.4);
@@ -287,12 +303,23 @@ body::-webkit-scrollbar {
   background: linear-gradient(135deg, var(--accent) 0%, transparent 70%);
   opacity: .28;
 }
+/* Glyph SVG line-art nội tuyến (xem glyphFor() trong display.js) — vector nên
+   luôn sắc nét ở 4K, không có bậc pixel như emoji bitmap cũ. Kích thước quy
+   theo `width` (không phải font-size, glyph không còn là ký tự văn bản) và
+   giữ nguyên `clamp()` bằng rem để to lên đúng tỉ lệ ở màn 3840×2160, giống
+   mọi kích thước khác trong file này. */
 .placeholder-glyph {
   position: relative;
-  font-size: clamp(3rem, 7vw, 7.5rem);
+  display: block;
+  width: clamp(3rem, 7vw, 7.5rem);
+  aspect-ratio: 1 / 1;
+  color: var(--text);
   opacity: .35;
-  filter: saturate(.7);
-  line-height: 1;
+}
+.placeholder-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* Lớp phủ (scrim) để chữ luôn đọc được trên ảnh — trung tính, không đổi theo theme */

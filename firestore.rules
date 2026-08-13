@@ -3,15 +3,18 @@
 // -----------------------------------------------------------------------------
 // Quy tắc bảo mật Firestore — theo đúng mục 7 ARCHITECTURE.md, cộng thêm vài
 // điều kiện validate dữ liệu để tránh admin (hoặc client bị lỗi) ghi rác vào
-// database.
+// database. Xem docs/BAO-MAT.md để hiểu bằng tiếng Việt, không thuật ngữ.
 //
-// Nguyên tắc chung:
+// Nguyên tắc chung (ĐÃ SIẾT LẠI — xem docs/BAO-MAT.md mục "Lỗ hổng 1"):
 //   - ĐỌC: công khai với tất cả (màn hình hiển thị không cần đăng nhập).
-//   - GHI: chỉ tài khoản đã đăng nhập Firebase Auth (email/mật khẩu) mới được
-//     ghi — đây là "cửa admin" duy nhất. apiKey Firebase công khai không phải
-//     lỗ hổng bảo mật, an toàn nằm ở các rule dưới đây.
-//   - status/{doc}: heartbeat gửi từ 4 màn hình không đăng nhập -> phải cho
-//     phép ghi công khai, riêng cho collection này.
+//   - GHI nội dung (menu/media/settings/themes...): CHỈ tài khoản có mặt trong
+//     danh sách admins/{uid} mới được ghi. "Đã đăng nhập" KHÔNG còn đủ, vì
+//     Firebase Auth (Email/Password) mặc định cho phép bất kỳ ai tự đăng ký
+//     tài khoản (accounts:signUp) — apiKey công khai trong mã nguồn trang là
+//     bình thường/theo thiết kế, KHÔNG phải lỗ hổng, xem docs/BAO-MAT.md.
+//   - status/{doc}: heartbeat gửi từ 4 màn hình không đăng nhập -> vẫn phải
+//     cho ghi công khai, nhưng siết chặt id tài liệu, hình dạng dữ liệu và độ
+//     dài từng field để giảm rủi ro tốn quota / rác dữ liệu (Lỗ hổng 2).
 // =============================================================================
 rules_version = '2';
 
@@ -19,26 +22,86 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // -------------------------------------------------------------------
-    // Mặc định cho MỌI document chưa được khai báo cụ thể bên dưới
-    // (vd settings/global, themes/{id}): đọc công khai, ghi cần đăng nhập.
+    // isAdmin(): true nếu người dùng đã đăng nhập Firebase Auth VÀ có một
+    // tài liệu tương ứng trong admins/{uid}. Đây là danh sách trắng admin.
+    // Được định nghĩa MỘT LẦN ở đây và tái sử dụng ở mọi match bên dưới để
+    // không bao giờ bị lệch logic giữa các collection.
     // -------------------------------------------------------------------
-    match /{document=**} {
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // -------------------------------------------------------------------
+    // admins/{uid}: danh sách trắng admin. KHÔNG client nào được ghi vào
+    // đây trong bất kỳ trường hợp nào — kể cả admin hiện tại — để một tài
+    // khoản bị chiếm cũng không thể tự phong thêm admin khác qua app; việc
+    // thêm/xoá admin chỉ được làm thủ công trong Firebase Console (đúng như
+    // owner yêu cầu ở docs/BAO-MAT.md).
+    //
+    // Về việc có cho ĐỌC hay không: cân nhắc kỹ và chọn KHÔNG cho đọc công
+    // khai (allow read: if false), lý do:
+    //   - App không cần đọc collection này ở đâu cả — isAdmin() dùng
+    //     exists(), không dùng get()/đọc dữ liệu, nên không cần quyền đọc.
+    //   - Nếu cho đọc công khai, bất kỳ ai cũng liệt kê được toàn bộ UID
+    //     admin (tuy không đủ để đăng nhập thay, nhưng lộ danh tính kỹ
+    //     thuật, giúp kẻ tấn công nhắm mục tiêu — vd social-engineer đúng
+    //     người, phishing UID đó, hoặc dò xem admin có bao nhiêu người).
+    //   - Không có lý do hợp lệ nào ở phía màn hình hiển thị hay trang admin
+    //     cần liệt kê UID của nhau.
+    // Vì vậy: đóng cả đọc lẫn ghi phía client, quản lý 100% từ Console.
+    // -------------------------------------------------------------------
+    match /admins/{uid} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // -------------------------------------------------------------------
+    // status/{doc}: heartbeat từ 4 màn hình — không có tài khoản đăng nhập,
+    // nên đọc VÀ ghi vẫn phải công khai (đọc: tab "Tổng quan" của admin cần
+    // đọc mà không đăng nhập trước khi vào trang login cũng không sao vì dữ
+    // liệu không nhạy cảm). Siết ghi theo 3 lớp:
+    //   1) doc id phải đúng 1 trong 4 id được tài liệu hoá ở ARCHITECTURE §2
+    //      (screen1..screen4) — chặn ghi document id tuỳ ý/vô hạn số lượng.
+    //   2) đúng hình dạng heartbeat ở ARCHITECTURE §2: revision (number hoặc
+    //      null), page (number), ua (string), res (string) — không field lạ
+    //      nhờ additionalFieldsIsolated ở dưới (kiểm bằng keys().hasOnly()).
+    //   3) chặn trên độ dài mỗi field string để không ai gửi document rác
+    //      khổng lồ (ua/res của trình duyệt thật luôn rất ngắn).
+    // LƯU Ý: đây là cách siết CHẶT NHẤT có thể mà KHÔNG bắt 4 màn hình đăng
+    // nhập. Nó GIẢM chứ KHÔNG loại bỏ hoàn toàn rủi ro — kẻ tấn công vẫn có
+    // thể gửi hàng chục nghìn write hợp lệ hình dạng vào đúng 4 id này để
+    // đốt quota 20.000 write/ngày (Spark). Muốn loại bỏ hẳn, chủ quán cần
+    // chuyển 4 màn hình sang xác thực bằng Firebase Anonymous Auth (mỗi màn
+    // đăng nhập ẩn danh 1 lần khi khởi động) rồi đổi rule này thành
+    // "request.auth != null" — một nâng cấp có thể làm sau, không bắt buộc
+    // phải xong trước khi khai trương.
+    // -------------------------------------------------------------------
+    match /status/{doc} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create, update: if doc in ["screen1", "screen2", "screen3", "screen4"]
+        && request.resource.data.keys().hasOnly(["lastSeen", "revision", "page", "ua", "res"])
+        && (request.resource.data.revision is number || request.resource.data.revision == null)
+        && request.resource.data.page is number
+        && request.resource.data.ua is string && request.resource.data.ua.size() <= 512
+        && request.resource.data.res is string && request.resource.data.res.size() <= 32;
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------------------
     // menu/{itemId}: bắt buộc name_pl (chuỗi không rỗng) và price (số)
     // mỗi khi tạo mới / cập nhật, để tránh món ăn "rác" hiển thị trên màn.
     // Xoá thì không cần validate dữ liệu (không có request.resource khi xoá).
+    // Lớp validate dữ liệu giữ nguyên như cũ, chỉ đổi request.auth != null
+    // thành isAdmin() để cộng thêm lớp danh sách trắng.
     // -------------------------------------------------------------------
     match /menu/{itemId} {
       allow read: if true;
-      allow create, update: if request.auth != null
+      allow create, update: if isAdmin()
         && request.resource.data.name_pl is string
         && request.resource.data.name_pl.size() > 0
         && request.resource.data.price is number;
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------------------
@@ -51,21 +114,67 @@ service cloud.firestore {
     // -------------------------------------------------------------------
     match /media/{mediaId} {
       allow read: if true;
-      allow create, update: if request.auth != null
+      allow create, update: if isAdmin()
         && request.resource.data.dataUrl is string
         && request.resource.data.dataUrl.size() < 1000000
         && request.resource.data.bytes is number
         && request.resource.data.bytes <= 750000;
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
 
     // -------------------------------------------------------------------
-    // status/screen{N}: heartbeat từ 4 màn hình — không có tài khoản đăng
-    // nhập, nên phải cho đọc VÀ ghi công khai. Rủi ro thấp vì tối đa chỉ
-    // ảnh hưởng tới trạng thái hiển thị trong tab "Tổng quan" của admin.
+    // settings/{settingId} (thực tế chỉ có 1 doc "global") và
+    // themes/{themeId}: đọc công khai (màn hình cần đọc để hiển thị đúng
+    // theme/bố cục), ghi cần nằm trong danh sách trắng admin. Trước đây hai
+    // collection này KHÔNG có match riêng, "trôi nổi" chỉ dựa vào catch-all
+    // bên dưới — nay khai báo tường minh để catch-all có thể đóng hoàn toàn
+    // (xem giải thích ngay dưới).
     // -------------------------------------------------------------------
-    match /status/{doc} {
-      allow read, write: if true;
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /themes/{themeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------
+    // Catch-all — ĐÓNG HOÀN TOÀN (đọc lẫn ghi), không phải "mặc định cho
+    // đăng nhập" như bản cũ. Đây là điểm SỬA QUAN TRỌNG NHẤT của đợt vá này.
+    //
+    // QUAN TRỌNG — ngữ nghĩa OR của Firestore Rules: khi nhiều match khớp
+    // cùng một đường dẫn, kết quả cuối cùng là OR của tất cả — chỉ cần MỘT
+    // match cho phép là được phép, bất kể match khác có chặt đến đâu.
+    // "{document=**}" khớp đường dẫn ở MỌI độ sâu, kể cả "menu/item1",
+    // "media/m1", "status/screen1", "admins/uid1" — nghĩa là nó khớp SONG
+    // SONG với từng match cụ thể ở trên, không phải "phần còn lại" như tên
+    // gọi trực giác có thể khiến người đọc lầm tưởng.
+    //
+    // Bản rules CŨ của dự án này từng viết catch-all là:
+    //   allow read: if true;
+    //   allow write: if isAdmin();      // (trước nữa: request.auth != null)
+    // Test bằng emulator (xem báo cáo bàn giao) đã CHỨNG MINH đây là lỗ
+    // hổng thật, không chỉ giả thuyết: vì "allow write: if isAdmin()" ở
+    // catch-all không kèm điều kiện validate dữ liệu, nó OR với rule
+    // menu/{itemId} và làm admin ghi được menu với name_pl rỗng — bỏ qua
+    // hoàn toàn validate; và vì catch-all áp cho CẢ admins/{uid}, một admin
+    // (hoặc user có token hợp lệ) có thể tự ghi thêm document vào
+    // admins/{uid} khác — vô hiệu hoá "admins chỉ sửa được từ Console".
+    // Đọc cũng bị lộ tương tự: "allow read: if true" ở catch-all khiến
+    // admins/{uid} bị đọc được công khai dù rule riêng của nó ghi
+    // "allow read: if false" — vì OR với true luôn ra true.
+    //
+    // Cách sửa AN TOÀN TUYỆT ĐỐI trước bẫy OR này: catch-all chỉ được phép
+    // là "if false" cho cả đọc lẫn ghi. "false OR X" luôn bằng X, nên
+    // catch-all kiểu này không bao giờ có thể nới quyền — nó chỉ đóng vai
+    // trò lưới an toàn mặc định-từ-chối cho bất kỳ collection nào phát sinh
+    // sau này mà chưa kịp khai báo rule riêng (thay vì mặc định-cho-phép
+    // như thiết kế cũ, vốn chính là nguồn gốc lỗ hổng).
+    // -------------------------------------------------------------------
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
     }
   }
 }

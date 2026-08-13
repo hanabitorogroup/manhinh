@@ -593,6 +593,152 @@ export function resolveImage(item, mediaMap) {
 }
 
 // -----------------------------------------------------------------------------
+// Nhập / xoá dữ liệu mẫu (seed) — CHỈ dùng ở admin, CHỈ có tác dụng với
+// Firebase thật (DEMO_MODE đã tự nạp seed vào localStorage từ initData() rồi,
+// xem ensureSeeded() ở trên — gọi các hàm dưới đây ở DEMO sẽ ném lỗi rõ ràng).
+//
+// Dùng Firestore batched writes (writeBatch) — giới hạn cứng của Firestore là
+// 500 THAO TÁC/batch (không phải 500 DOCUMENT — set/update/delete đều tính là
+// 1 thao tác). 72 món + tối đa vài doc settings/themes vẫn nằm gọn trong 1
+// batch, nhưng chunkedBatchWrite() vẫn CHIA NHỎ theo đúng giới hạn đó một
+// cách tổng quát, để không âm thầm vỡ nếu sau này seed-data.js phình to hơn
+// 500 món (hoặc khi dùng lại chunkedBatchWrite() để xoá nhiều món cùng lúc).
+// -----------------------------------------------------------------------------
+const FIRESTORE_BATCH_LIMIT = 500;
+
+/**
+ * Ghi 1 danh sách thao tác (set/delete) bằng writeBatch(), tự chia thành
+ * nhiều batch theo đúng giới hạn 500 thao tác/batch của Firestore.
+ * @param {object} db
+ * @param {object} mods - mods.firestore (namespace import đầy đủ)
+ * @param {Array<{type:"set"|"delete", ref:object, data?:object, options?:object}>} ops
+ * @param {(done:number,total:number)=>void} [onProgress]
+ * @returns {Promise<number>} tổng số thao tác đã ghi thành công
+ */
+async function chunkedBatchWrite(db, mods, ops, onProgress) {
+  const { writeBatch } = mods.firestore;
+  let done = 0;
+  for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
+    const slice = ops.slice(i, i + FIRESTORE_BATCH_LIMIT);
+    const batch = writeBatch(db);
+    slice.forEach((op) => {
+      if (op.type === "delete") batch.delete(op.ref);
+      else batch.set(op.ref, op.data, op.options || {});
+    });
+    await batch.commit();
+    done += slice.length;
+    if (typeof onProgress === "function") {
+      try {
+        onProgress(done, ops.length);
+      } catch (e) {
+        /* lỗi trong callback tiến trình không được phép làm hỏng việc ghi dữ liệu */
+      }
+    }
+  }
+  return done;
+}
+
+async function docExistsIn(db, mods, col, id) {
+  const { doc, getDoc } = mods.firestore;
+  const snap = await getDoc(doc(db, col, id));
+  return snap.exists();
+}
+
+/**
+ * Nhập 72 món mẫu (`seed-data.js`) vào Firebase THẬT bằng batched writes.
+ * Chỉ ghi `settings/global` nếu CHƯA tồn tại (không đè cấu hình đã chỉnh),
+ * và chỉ ghi các `themes/{id}` có trong SEED_DATA.themes mà CHƯA tồn tại —
+ * không có tác dụng phụ nào lên dữ liệu người dùng đã tự lưu.
+ *
+ * @param {"add"|"replace"} mode
+ *   "add"     — giữ nguyên món đang có, chỉ ghi thêm 72 món mẫu (món mẫu
+ *               trùng id với lần seed trước sẽ được ghi đè lại đúng dữ liệu
+ *               gốc — idempotent, KHÔNG đụng tới món do admin tự thêm vì
+ *               chúng có id khác).
+ *   "replace" — XOÁ TOÀN BỘ document đang có trong collection `menu` trước,
+ *               rồi mới nhập lại 72 món mẫu. Gọi hàm này chỉ sau khi người
+ *               dùng đã xác nhận rõ ràng ở lớp UI (admin.js) — bản thân hàm
+ *               này KHÔNG hỏi lại, cứ nhận mode="replace" là xoá ngay.
+ * @param {(done:number,total:number,stage:"deleting"|"writing")=>void} [onProgress]
+ * @returns {Promise<{written:number, deleted:number}>}
+ */
+export async function seedSampleData(mode, onProgress) {
+  if (DEMO) {
+    throw new Error(
+      "Không dùng chức năng này ở chế độ DEMO — dữ liệu mẫu đã tự nạp sẵn vào bộ nhớ trình duyệt."
+    );
+  }
+  const { db, mods } = await loadFirebase();
+  const { collection, doc, getDocs, serverTimestamp } = mods.firestore;
+
+  let deleted = 0;
+  if (mode === "replace") {
+    const snap = await getDocs(collection(db, "menu"));
+    const delOps = snap.docs.map((d) => ({ type: "delete", ref: d.ref }));
+    if (delOps.length) {
+      deleted = await chunkedBatchWrite(db, mods, delOps, (done, total) => {
+        if (typeof onProgress === "function") onProgress(done, total, "deleting");
+      });
+    }
+  }
+
+  const seed = SEED_DATA || {};
+  const menuOps = (seed.menu || []).map((item) => {
+    const { id, ...rest } = item;
+    return {
+      type: "set",
+      ref: doc(db, "menu", id || genId()),
+      data: { ...rest, updatedAt: serverTimestamp() },
+      options: { merge: true },
+    };
+  });
+
+  const extraOps = [];
+  const settingsExists = await docExistsIn(db, mods, "settings", "global");
+  if (!settingsExists) {
+    extraOps.push({
+      type: "set",
+      ref: doc(db, "settings", "global"),
+      data: { ...(seed.settings || DEFAULT_SETTINGS), updatedAt: serverTimestamp() },
+      options: { merge: true },
+    });
+  }
+  const seedThemes = seed.themes || {};
+  for (const themeId of Object.keys(seedThemes)) {
+    const exists = await docExistsIn(db, mods, "themes", themeId);
+    if (!exists) {
+      extraOps.push({ type: "set", ref: doc(db, "themes", themeId), data: seedThemes[themeId], options: { merge: true } });
+    }
+  }
+
+  const written = await chunkedBatchWrite(db, mods, [...menuOps, ...extraOps], (done, total) => {
+    if (typeof onProgress === "function") onProgress(done, total, "writing");
+  });
+
+  return { written, deleted };
+}
+
+/**
+ * Xoá TOÀN BỘ document trong collection `menu` (dọn dữ liệu mẫu/thử nghiệm
+ * trước khi nhập thực đơn thật). CHỈ xoá `menu` — không đụng settings/themes
+ * để giữ nguyên bố cục/giao diện admin đã chỉnh. Gọi hàm này chỉ sau khi
+ * người dùng đã xác nhận rõ ràng ở lớp UI — bản thân hàm KHÔNG hỏi lại.
+ * @param {(done:number,total:number)=>void} [onProgress]
+ * @returns {Promise<{deleted:number}>}
+ */
+export async function deleteAllMenuItems(onProgress) {
+  if (DEMO) {
+    throw new Error("Không dùng chức năng này ở chế độ DEMO — hãy xoá từng món ở tab \"Món ăn\".");
+  }
+  const { db, mods } = await loadFirebase();
+  const { collection, getDocs } = mods.firestore;
+  const snap = await getDocs(collection(db, "menu"));
+  const ops = snap.docs.map((d) => ({ type: "delete", ref: d.ref }));
+  const deleted = await chunkedBatchWrite(db, mods, ops, onProgress);
+  return { deleted };
+}
+
+// -----------------------------------------------------------------------------
 // Heartbeat — màn hình báo "còn sống" cho admin theo dõi
 // -----------------------------------------------------------------------------
 const HEARTBEAT_MIN_INTERVAL_MS = 55000; // tự vệ nội bộ, dù caller nên tự throttle ~60s
@@ -676,4 +822,214 @@ export async function signOutAdmin() {
 export function onAuth(cb) {
   if (DEMO) return demoSubscribe("auth", cb);
   return fbSubscribe(({ auth, mods }) => mods.auth.onAuthStateChanged(auth, cb));
+}
+
+// =============================================================================
+// Preflight — chẩn đoán lỗi cấu hình Firebase phổ biến
+// -----------------------------------------------------------------------------
+// Một dự án Firebase mới tạo rất dễ thiếu 1 trong 3 bước bắt buộc (Firestore
+// chưa bật, rules chưa deploy, Email/Password chưa bật) — khi đó chủ quán chỉ
+// thấy lỗi gốc của Firebase (tiếng Anh, mã lỗi khó hiểu) hoặc màn hình trống.
+// Các hàm dưới đây DỊCH mã lỗi Firebase thật (error.code) sang tiếng Việt
+// CHÍNH XÁC kèm bước khắc phục cụ thể — KHÔNG đoán bừa nguyên nhân khi mã lỗi
+// không đủ để phân biệt (trả về status "warn" + liệt kê việc cần tự kiểm tra).
+//
+// GHI CHÚ: không nằm trong bảng "API bắt buộc" mục 4 ARCHITECTURE.md, theo
+// đúng tiền lệ của onMedia/resolveImage/resyncServerOffset — nơi gọi (admin.js)
+// dùng `typeof === 'function'` trước khi gọi.
+// =============================================================================
+
+function configPlaceholderFields() {
+  return Object.entries(firebaseConfig || {})
+    .filter(([, v]) => typeof v === "string" && v.includes("PASTE_"))
+    .map(([k]) => k);
+}
+
+/**
+ * Phân loại 1 lỗi kết nối Firestore/Auth thành 1 câu tiếng Việt ngắn gọn —
+ * dùng để LOG RA CONSOLE (không phải hiển thị trực tiếp cho khách ở 4 màn
+ * hình — màn hình chỉ hiện 1 dòng tiếng Ba Lan tối giản, xem display.js).
+ * Hàm THUẦN (không gọi mạng), an toàn gọi từ bất kỳ đâu, kể cả display.js.
+ * @param {Error} err
+ * @returns {string}
+ */
+export function describeConnectionError(err) {
+  const code = err && err.code;
+  const msg = (err && err.message) || String(err);
+  if (code === "permission-denied") {
+    return "Firestore từ chối quyền truy cập (permission-denied) — nhiều khả năng firestore.rules chưa được deploy (firebase deploy --only firestore:rules).";
+  }
+  if (code === "unavailable" || /offline/i.test(msg)) {
+    return "Không kết nối được Cloud Firestore — kiểm tra Firestore Database đã bật trong Firebase Console chưa, và kết nối mạng của thiết bị.";
+  }
+  if (code === "not-found") {
+    return "Không tìm thấy dự án Firestore khớp với projectId trong firebase-config.js.";
+  }
+  if (typeof code === "string" && code.startsWith("auth/")) {
+    return `Lỗi Firebase Auth (${code}): ${msg}`;
+  }
+  return `Lỗi kết nối Firestore không xác định rõ nguyên nhân (mã: ${code || "?"}): ${msg}`;
+}
+
+function classifyFirestoreReadError(err) {
+  const code = err && err.code;
+  const msg = (err && err.message) || String(err);
+  if (code === "permission-denied") {
+    return {
+      id: "firestore-read", status: "fail", label: "Quyền đọc Firestore",
+      message: "Firestore từ chối quyền đọc (permission-denied) — bộ quy tắc bảo mật (firestore.rules) chưa được deploy, hoặc đã bị chỉnh sai.",
+      fix: "Chạy lệnh `firebase deploy --only firestore:rules` trong thư mục dự án (thư mục chứa firebase.json) để deploy đúng file firestore.rules.",
+    };
+  }
+  if (code === "unavailable" || code === "failed-precondition" || /offline/i.test(msg)) {
+    return {
+      id: "firestore-read", status: "fail", label: "Kết nối Firestore",
+      message: "Không kết nối được tới Cloud Firestore — có thể do Firestore Database chưa được bật cho dự án này, hoặc mất mạng.",
+      fix: "Vào Firebase Console → Build → Firestore Database, xác nhận đã bấm \"Create database\" (Bước 2 trong DEPLOY.md). Nếu đã bật, kiểm tra lại kết nối mạng của máy đang mở trang admin.",
+    };
+  }
+  if (code === "not-found") {
+    return {
+      id: "firestore-read", status: "fail", label: "Dự án Firestore",
+      message: "Không tìm thấy Firestore khớp với projectId đang khai báo trong firebase-config.js.",
+      fix: "So lại projectId trong firebase-config.js với Firebase Console (⚙️ Project settings), và xác nhận Firestore Database đã được tạo (Bước 2 DEPLOY.md).",
+    };
+  }
+  return {
+    id: "firestore-read", status: "warn", label: "Kết nối Firestore",
+    message: `Không đọc được dữ liệu từ Firestore, không xác định chắc chắn nguyên nhân (mã lỗi: ${code || "không có"}). Chi tiết gốc: ${msg}`,
+    fix: "Kiểm tra lần lượt: (1) Firestore Database đã bật chưa, (2) firestore.rules đã deploy chưa, (3) firebase-config.js đúng chưa, (4) kết nối mạng của thiết bị.",
+  };
+}
+
+function classifyAuthProbeError(err) {
+  const code = err && err.code;
+  if (code === "auth/operation-not-allowed") {
+    return {
+      id: "auth-provider", status: "fail", label: "Đăng nhập Email/Mật khẩu",
+      message: "Provider Email/Password chưa được bật trong Firebase Authentication.",
+      fix: "Vào Firebase Console → Build → Authentication → tab \"Sign-in method\" → bật \"Email/Password\" (Bước 3 DEPLOY.md).",
+    };
+  }
+  if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password", "auth/invalid-email"].includes(code)) {
+    return {
+      id: "auth-provider", status: "ok", label: "Đăng nhập Email/Mật khẩu",
+      message: "Provider Email/Password đang hoạt động (thử đăng nhập bằng tài khoản giả bị từ chối đúng như mong đợi, không phải do provider tắt).",
+    };
+  }
+  if (code === "auth/network-request-failed") {
+    return {
+      id: "auth-provider", status: "warn", label: "Đăng nhập Email/Mật khẩu",
+      message: "Không kiểm tra được do lỗi mạng khi gọi Authentication.",
+      fix: "Kiểm tra kết nối mạng của thiết bị rồi tải lại trang.",
+    };
+  }
+  return {
+    id: "auth-provider", status: "warn", label: "Đăng nhập Email/Mật khẩu",
+    message: `Không xác định chắc chắn được trạng thái Authentication (mã lỗi: ${code || "không có"}${err && err.message ? ": " + err.message : ""}).`,
+    fix: "Kiểm tra thủ công trong Firebase Console → Authentication → Sign-in method xem \"Email/Password\" đã bật chưa.",
+  };
+}
+
+/**
+ * Chuỗi kiểm tra "tiền bay" cho trang admin, chạy TRƯỚC khi biết trạng thái
+ * đăng nhập (không cần tài khoản): (1) config còn placeholder "PASTE_" không,
+ * (2) đọc được dữ liệu công khai từ Firestore không (settings/global — luôn
+ * cho phép đọc theo firestore.rules mục 7 ARCHITECTURE.md), (3) provider
+ * Email/Password của Firebase Auth có đang bật không.
+ * @returns {Promise<{ok:boolean, checks: Array<{id:string,status:"ok"|"fail"|"warn",label:string,message:string,fix?:string}>}>}
+ */
+export async function runPreflight() {
+  const checks = [];
+
+  const placeholders = configPlaceholderFields();
+  if (placeholders.length > 0) {
+    checks.push({
+      id: "config", status: "fail", label: "Cấu hình Firebase",
+      message: `firebase-config.js còn giá trị mẫu ở: ${placeholders.join(", ")}.`,
+      fix: "Mở public/assets/js/firebase-config.js, dán đúng giá trị thật lấy từ Firebase Console (⚙️ Project settings → Your apps) đè lên các chữ \"PASTE_...\", lưu file rồi tải lại trang này.",
+    });
+    return { ok: false, checks };
+  }
+  checks.push({ id: "config", status: "ok", label: "Cấu hình Firebase", message: "Đã điền đủ, không còn giá trị mẫu." });
+
+  let fb;
+  try {
+    fb = await loadFirebase();
+  } catch (err) {
+    checks.push({
+      id: "sdk", status: "fail", label: "Tải Firebase SDK",
+      message: "Không tải được thư viện Firebase từ CDN (www.gstatic.com) — có thể do mất mạng hoặc bị chặn.",
+      fix: "Kiểm tra kết nối Internet của thiết bị đang mở trang admin, và không có tường lửa/trình chặn quảng cáo nào chặn *.gstatic.com.",
+    });
+    return { ok: false, checks };
+  }
+
+  try {
+    const { doc, getDoc } = fb.mods.firestore;
+    await getDoc(doc(fb.db, "settings", "global"));
+    checks.push({ id: "firestore-read", status: "ok", label: "Đọc Firestore", message: "Đọc được dữ liệu công khai từ Firestore." });
+  } catch (err) {
+    checks.push(classifyFirestoreReadError(err));
+    return { ok: false, checks }; // các bước sau cần đọc được Firestore trước
+  }
+
+  try {
+    const { signInWithEmailAndPassword } = fb.mods.auth;
+    await signInWithEmailAndPassword(
+      fb.auth,
+      "__hbt_preflight_probe__@example.invalid",
+      "hbt-preflight-probe-000000"
+    );
+    // Không có khả năng đăng nhập thật sự thành công (tài khoản không tồn
+    // tại) — nếu tới được đây coi như bất thường, nhưng vẫn báo "ok" vì rõ
+    // ràng provider không chặn với lý do "operation-not-allowed".
+    checks.push({ id: "auth-provider", status: "ok", label: "Đăng nhập Email/Mật khẩu", message: "Provider Email/Password đang hoạt động." });
+  } catch (err) {
+    checks.push(classifyAuthProbeError(err));
+  }
+
+  const anyFail = checks.some((c) => c.status === "fail");
+  return { ok: !anyFail, checks };
+}
+
+/**
+ * Kiểm tra quyền GHI Firestore — chỉ có ý nghĩa SAU KHI signIn() thành công.
+ * Ghi rồi xoá ngay 1 doc dò ở collection `_diagnostics` (KHÔNG thuộc mô hình
+ * dữ liệu thật mô tả ở ARCHITECTURE.md mục 2, không đụng settings/menu/themes
+ * thật) — rơi vào rule mặc định `match /{document=**}` (đọc công khai, ghi
+ * cần đăng nhập), đúng loại quyền cần kiểm tra mà không có tác dụng phụ nào
+ * lên dữ liệu hiển thị thật.
+ * @returns {Promise<{id:string,status:"ok"|"fail"|"warn",label:string,message:string,fix?:string}>}
+ */
+export async function checkWritePermission() {
+  if (DEMO) {
+    return { id: "firestore-write", status: "ok", label: "Quyền ghi Firestore", message: "Chế độ DEMO — không áp dụng." };
+  }
+  try {
+    const { db, mods } = await loadFirebase();
+    const { doc, setDoc, deleteDoc, serverTimestamp } = mods.firestore;
+    const ref = doc(db, "_diagnostics", "preflightWriteProbe");
+    await setDoc(ref, { checkedAt: serverTimestamp() }, { merge: true });
+    try {
+      await deleteDoc(ref);
+    } catch (e) {
+      /* dọn dẹp doc dò thất bại không quan trọng — không ảnh hưởng kết quả kiểm tra */
+    }
+    return { id: "firestore-write", status: "ok", label: "Quyền ghi Firestore", message: "Đăng nhập và ghi được dữ liệu — rules bảo mật hoạt động đúng." };
+  } catch (err) {
+    const code = err && err.code;
+    if (code === "permission-denied") {
+      return {
+        id: "firestore-write", status: "fail", label: "Quyền ghi Firestore",
+        message: "Đã đăng nhập nhưng Firestore vẫn từ chối quyền ghi (permission-denied) — rules đã deploy nhưng đang chặn nhầm tài khoản đã đăng nhập.",
+        fix: "So sánh nội dung firestore.rules đã deploy (Firebase Console → Firestore Database → Rules) với file firestore.rules trong dự án, sửa cho khớp rồi chạy lại `firebase deploy --only firestore:rules`.",
+      };
+    }
+    return {
+      id: "firestore-write", status: "warn", label: "Quyền ghi Firestore",
+      message: `Không xác nhận được quyền ghi (mã lỗi: ${code || "không có"}${err && err.message ? ": " + err.message : ""}).`,
+      fix: "Thử lưu 1 thay đổi bất kỳ (vd đổi theme ở tab Giao diện) để kiểm tra thực tế; nếu lỗi lặp lại, kiểm tra lại firestore.rules.",
+    };
+  }
 }

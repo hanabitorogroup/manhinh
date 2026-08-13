@@ -161,11 +161,21 @@ export async function saveSettings(patch);
 export async function saveItem(item);             // upsert, tự set updatedAt
 export async function deleteItem(id);
 export async function saveTheme(id, theme);
+export function onMedia(cb);                      // cb({id: media})   -> unsubscribe()
 export async function uploadMedia(file);          // -> mediaId, tự resize+nén WebP
+export function resolveImage(item, mediaMap);     // -> src; imageUrl ƯU TIÊN hơn mediaId
 export async function heartbeat(screenId, info);
 export function getServerOffsetMs();
+export async function resyncServerOffset();       // gọi lại mỗi giờ — xem mục 9(d)
+export async function signIn(email, pass);        // đăng nhập admin
+export async function signOutAdmin();
+export function onAuth(cb);                       // cb(user|null)     -> unsubscribe()
 export const DEMO;                                // true nếu chạy không có Firebase
 ```
+
+> Bảng này phải khớp với `export` thật trong `data-layer.js`. Đã có lần lệch nhau khiến
+> agent khác phải import phòng thủ bằng `typeof` để tránh vỡ trang — **thêm hàm mới thì
+> cập nhật cả đây.**
 
 **DEMO_MODE**: khi chưa cấu hình Firebase, `data-layer.js` đọc/ghi `localStorage` với dữ
 liệu mẫu import tĩnh từ `public/assets/js/seed-data.js` (72 món → 12 trang → đúng 3 trang

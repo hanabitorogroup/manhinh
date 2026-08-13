@@ -239,3 +239,45 @@ API key của Firebase là công khai theo thiết kế — an toàn nằm ở r
 | `summer` | Mùa hè (Lato / Grill) | 6–8 | bubbles |
 
 Admin chọn thủ công (không tự đổi theo ngày) — chủ quán toàn quyền quyết định.
+
+---
+
+## 9. Phần cứng thực tế — ràng buộc bắt buộc tuân thủ
+
+| Thông số | Giá trị |
+|---|---|
+| Màn hình | IIYAMA 49.5" **LH5060UHS-B1AG** × 4 |
+| Độ phân giải | **4K UHD 3840×2160** |
+| Máy phát | **SoC Android tích hợp** (không có PC ngoài) |
+| Phần mềm | **iiSignage**, chế độ **URL** |
+| Kết nối | Wifi tích hợp |
+| Thời gian chạy | **24/7** |
+
+Đây **không phải trình duyệt máy tính**. Bốn ràng buộc dưới đây quyết định nhiều lựa
+chọn trong code — đừng đảo ngược chúng nếu chưa hiểu lý do:
+
+**a) Kích thước phải độc lập với độ phân giải.** Trang đặt
+`<meta name="viewport" content="width=1920">`. Nếu WebView tuân thủ, trang dựng ở 1920
+CSS px với DPR 2 — đẹp và sắc nét. Nếu **không** tuân thủ, khung nhìn thành 3840 CSS px,
+mọi `clamp()` chạm trần trên và chữ bị nhỏ đi khoảng 40%. Vì vậy cỡ chữ phải quy về
+`rem` với `font-size` gốc tính theo `vw`, **không được phụ thuộc vào thẻ meta**. Mọi thay
+đổi CSS phải kiểm ở **cả 1920×1080 lẫn 3840×2160**.
+
+**b) SoC màn hình rất yếu.** Canvas hiệu ứng hạt bị **giới hạn khung nền tối đa
+1920×1080** kể cả khi màn 4K (CSS phóng to lên — hạt vốn mờ, phóng to không thấy khác),
+và giới hạn ~30fps. Vẽ hạt ở 3840×2160 liên tục 24/7 sẽ làm máy nóng và giật.
+
+**c) WebView Android thường cũ hơn Chrome máy tính vài phiên bản.** Code dùng ES module,
+`?.` và `??` — cần Chromium 80+. Nếu WebView cũ hơn, khách sẽ thấy **màn hình trắng trơn
+không một dòng chữ**. Vì vậy mỗi trang có một đoạn script **classic ES5 nội tuyến** dò
+tính năng và hiện thông báo đọc được thay cho màn hình trắng. Đoạn script đó **chỉ được
+viết bằng cú pháp ES5** — nó là lưới an toàn cuối cùng, không được phép tự nó lỗi.
+
+**d) Chạy 24/7 nên phải tự phục hồi.** WebView phình bộ nhớ sau nhiều ngày. Do đó:
+tự tải lại trang mỗi ngày một lần vào giờ vắng khách (`settings.reloadHour`, mặc định
+4 giờ sáng); watchdog tải lại nếu vòng vẽ đứng quá ~90 giây; và **đồng bộ lại
+`serverOffsetMs` mỗi giờ** vì đồng hồ Android trôi dần theo tuần, mà cơ chế 4 màn hình
+lật trang cùng nhịp (mục 3) phụ thuộc vào nó.
+
+> Bật **tự động chỉnh giờ qua mạng (NTP)** trên cả 4 máy. Nếu đồng hồ sai lệch nhiều
+> và Firestore không kết nối được, các màn hình sẽ lật trang lệch nhau.

@@ -186,18 +186,30 @@ nên nội dung luôn khớp giữa 2 chế độ.
 > nếu bạn muốn — nhưng với 72 món, nút nhập nhanh ở trên tiết kiệm khoảng
 > 1-1.5 giờ so với gõ tay, mà vẫn không cần cài thêm npm hay viết code nào.
 
-## Bước 9 — Kết nối tên miền barkinglong.pl
+## Bước 9 — Kết nối tên miền menu.barkinglong.pl
+
+> **QUAN TRỌNG — dùng subdomain `menu.`, KHÔNG dùng tên miền gốc.** Tên miền
+> gốc `barkinglong.pl` (không có `menu.` phía trước) đã là trang web chính
+> của quán, chạy ở nơi khác — **không được đụng vào DNS của tên miền gốc**.
+> Hệ thống menu điện tử này chỉ dùng đúng 1 subdomain riêng:
+> `menu.barkinglong.pl`. Nhập nhầm thành tên miền gốc ở bước 2 dưới đây có
+> thể khiến Firebase yêu cầu bản ghi DNS đè lên/ảnh hưởng trang web hiện tại
+> của quán — đọc kỹ từng bước.
 
 1. Firebase Console → **"Hosting"** → **"Add custom domain"**.
-2. Nhập `barkinglong.pl` → **"Continue"**.
-3. Firebase hiện ra 1-2 bản ghi DNS (thường là `A` record trỏ tới IP, hoặc
-   `TXT` record để xác minh quyền sở hữu). Đăng nhập vào nơi quản lý tên miền
-   (nhà cung cấp domain `barkinglong.pl`) → phần quản lý DNS → thêm đúng các
-   bản ghi Firebase yêu cầu.
+2. Nhập đúng **`menu.barkinglong.pl`** (có chữ `menu.` ở đầu) → **"Continue"**.
+3. Firebase hiện ra 1 bản ghi DNS cần thêm cho **đúng subdomain `menu`**
+   (thường là bản ghi `A` trỏ tới IP, đôi khi `CNAME` tuỳ Firebase gợi ý cho
+   subdomain) — đăng nhập vào nơi quản lý tên miền (nhà cung cấp domain
+   `barkinglong.pl`) → phần quản lý DNS → thêm **đúng bản ghi con `menu`**
+   (Name/Host = `menu`), **giữ nguyên mọi bản ghi khác của tên miền gốc**
+   (bản ghi `@`/gốc, `www`, mail...) — đó là trang web chính của quán, không
+   được sửa.
 4. Quay lại Firebase Console, bấm **"Verify"**. Việc lan truyền DNS có thể mất
    từ vài phút đến 24-48 giờ.
-5. Sau khi xác minh xong, Firebase tự cấp chứng chỉ SSL (https) miễn phí —
-   không cần làm gì thêm.
+5. Sau khi xác minh xong, Firebase tự cấp chứng chỉ SSL (https) miễn phí cho
+   `menu.barkinglong.pl` — không cần làm gì thêm, và trang web chính ở tên
+   miền gốc không bị ảnh hưởng gì.
 
 ## Bước 10 — Trỏ 4 màn hình vào đúng URL
 
@@ -206,14 +218,14 @@ kiosk mode) đúng 1 địa chỉ:
 
 | Màn hình | Địa chỉ |
 |---|---|
-| Màn hình 1 | `https://barkinglong.pl/omh1.html` |
-| Màn hình 2 | `https://barkinglong.pl/omh2.html` |
-| Màn hình 3 | `https://barkinglong.pl/omh3.html` |
-| Màn hình 4 | `https://barkinglong.pl/omh4.html` |
+| Màn hình 1 | `https://menu.barkinglong.pl/omh1.html` |
+| Màn hình 2 | `https://menu.barkinglong.pl/omh2.html` |
+| Màn hình 3 | `https://menu.barkinglong.pl/omh3.html` |
+| Màn hình 4 | `https://menu.barkinglong.pl/omh4.html` |
 
 Mẹo: dùng Chrome kiosk mode để ẩn thanh địa chỉ, vd trên Windows tạo shortcut
 với đích:
-`"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk https://barkinglong.pl/omh1.html`
+`"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk https://menu.barkinglong.pl/omh1.html`
 
 Nếu 1 màn hình khởi động lại (mất điện, treo máy...), chỉ cần mở lại đúng
 URL — nhờ cơ chế đồng hồ tuyệt đối (xem `docs/ARCHITECTURE.md` mục 3), màn
@@ -241,10 +253,10 @@ không ai đứng canh" — làm đúng các bước dưới đây một lần r
 
    | Màn hình vật lý | URL nhập vào iiSignage |
    |---|---|
-   | Màn hình 1 | `https://barkinglong.pl/omh1.html` |
-   | Màn hình 2 | `https://barkinglong.pl/omh2.html` |
-   | Màn hình 3 | `https://barkinglong.pl/omh3.html` |
-   | Màn hình 4 | `https://barkinglong.pl/omh4.html` |
+   | Màn hình 1 | `https://menu.barkinglong.pl/omh1.html` |
+   | Màn hình 2 | `https://menu.barkinglong.pl/omh2.html` |
+   | Màn hình 3 | `https://menu.barkinglong.pl/omh3.html` |
+   | Màn hình 4 | `https://menu.barkinglong.pl/omh4.html` |
 
 4. Đặt chế độ hiển thị là **toàn màn hình / kiosk** (ẩn thanh địa chỉ, ẩn
    thanh điều hướng Android) nếu iiSignage có tuỳ chọn này.
@@ -405,11 +417,13 @@ màn hình có đang mất mạng không (xem tab "Tổng quan" trong admin — 
 hình đó để lấy bản mới ngay lập tức, hoặc đợi tối đa 24 giờ để cache tự hết
 hạn.
 
-**Không kết nối được domain `barkinglong.pl`**
-→ Kiểm tra lại bản ghi DNS đã thêm đúng chưa (mục Hosting → domain đó trong
-Firebase Console sẽ báo rõ trạng thái "Needs setup / Pending / Connected").
-DNS có thể mất tới 48 giờ để lan truyền hoàn toàn trên toàn cầu — nếu mới thêm
-vài giờ thì cứ chờ thêm.
+**Không kết nối được domain `menu.barkinglong.pl`**
+→ Kiểm tra lại bản ghi DNS của **subdomain `menu`** đã thêm đúng chưa (mục
+Hosting → domain đó trong Firebase Console sẽ báo rõ trạng thái "Needs setup /
+Pending / Connected"). DNS có thể mất tới 48 giờ để lan truyền hoàn toàn trên
+toàn cầu — nếu mới thêm vài giờ thì cứ chờ thêm. Lưu ý: đây là bản ghi DNS
+riêng của subdomain `menu` — không đụng tới bản ghi của tên miền gốc
+`barkinglong.pl` (trang web chính của quán, không liên quan hệ thống này).
 
 **Muốn quay lại chế độ DEMO để test mà không ảnh hưởng dữ liệu thật**
 → Mở `public/assets/js/firebase-config.js`, tạm đổi `apiKey` về chứa lại chữ

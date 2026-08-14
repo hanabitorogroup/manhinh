@@ -6,7 +6,42 @@
     "trailingSlash": false,
     "redirects": [
       {
+        "source": "/ohm1.html",
+        "destination": "/omh1.html",
+        "type": 301
+      },
+      {
+        "source": "/ohm2.html",
+        "destination": "/omh2.html",
+        "type": 301
+      },
+      {
+        "source": "/ohm3.html",
+        "destination": "/omh3.html",
+        "type": 301
+      },
+      {
         "source": "/ohm4.html",
+        "destination": "/omh4.html",
+        "type": 301
+      },
+      {
+        "source": "/mho1.html",
+        "destination": "/omh1.html",
+        "type": 301
+      },
+      {
+        "source": "/mho2.html",
+        "destination": "/omh2.html",
+        "type": 301
+      },
+      {
+        "source": "/mho3.html",
+        "destination": "/omh3.html",
+        "type": 301
+      },
+      {
+        "source": "/mho4.html",
         "destination": "/omh4.html",
         "type": 301
       }

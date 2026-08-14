@@ -100,7 +100,26 @@ function sortMenu(list) {
   });
 }
 
-/** Ghép preset trong THEMES với các bản ghi đè lưu trong Firestore/localStorage. */
+// Tiền tố id dành riêng cho các doc "dò" nội bộ (vd preflight write-check) —
+// KHÔNG BAO GIỜ được coi là dữ liệu thật (theme/món ăn/...), bất kể ghi vào
+// collection nào. Đây là quy ước dùng chung cho mọi doc dò trong file này.
+const RESERVED_ID_PREFIX = "__hbt";
+function isReservedId(id) {
+  return typeof id === "string" && id.startsWith(RESERVED_ID_PREFIX);
+}
+
+/**
+ * Ghép preset trong THEMES với các bản ghi đè lưu trong Firestore/localStorage.
+ *
+ * ĐÂY LÀ CHOKEPOINT DUY NHẤT lọc bỏ id "dò" nội bộ (xem RESERVED_ID_PREFIX)
+ * khỏi kết quả — cả DEMO (READERS.themes) lẫn Firebase thật (onThemes) đều đi
+ * qua hàm này, nên chỉ cần lọc ở một chỗ, không nơi nào phía dưới (admin.js,
+ * display.js) phải tự biết doc dò tồn tại hay tự lọc lại. Quan trọng: đúng
+ * ĐẮN của việc lọc này KHÔNG được phép phụ thuộc vào việc dọn dẹp (xoá) doc dò
+ * có thành công hay không — nếu checkWritePermission() ghi xong mà xoá thất
+ * bại (mất mạng, race...), doc dò có thể tồn tại vĩnh viễn trong Firestore,
+ * và hàm này vẫn phải lọc nó ra mỗi lần, mãi mãi.
+ */
 function buildThemesMap(overridesMap) {
   const result = {};
   for (const id of Object.keys(THEMES)) {
@@ -108,6 +127,7 @@ function buildThemesMap(overridesMap) {
   }
   if (overridesMap) {
     for (const id of Object.keys(overridesMap)) {
+      if (isReservedId(id)) continue; // doc dò nội bộ — không phải theme thật, không bao giờ lộ ra ngoài
       if (!result[id]) result[id] = { ...overridesMap[id] };
     }
   }
@@ -995,17 +1015,28 @@ export async function runPreflight() {
 
 /**
  * Kiểm tra quyền GHI Firestore — chỉ có ý nghĩa SAU KHI signIn() thành công.
- * Ghi rồi xoá ngay 1 doc dò ở collection `themes/{themeId}` (collection này
- * theo thiết kế chấp nhận id tuỳ ý — xem ARCHITECTURE.md mục 2 — nên 1 id dò
- * không va chạm với 6 theme preset thật, không có tác dụng phụ nào lên giao
- * diện hiển thị). CỐ Ý dùng đúng collection thật (`themes`) thay vì 1
- * collection ảo kiểu `_diagnostics/…`: `firestore.rules` của dự án này khai
- * báo tường minh từng collection và đóng catch-all (`match /{document=**}`)
- * thành `if false` — xem docs/BAO-MAT.md — nên một collection KHÔNG được khai
- * báo riêng sẽ luôn bị từ chối ghi dù tài khoản có hợp lệ đến đâu, khiến phép
- * dò trở thành false negative. `themes/{themeId}` có rule `allow write: if
- * isAdmin();` không kèm điều kiện validate dữ liệu nào khác, nên phản ánh
- * đúng "quyền ghi admin" mà không cần biết trước hình dạng dữ liệu.
+ * Ghi rồi (cố gắng) xoá ngay 1 doc dò ở collection `settings/{settingId}`,
+ * id `RESERVED_ID_PREFIX + "PreflightProbe"` (KHÔNG PHẢI `settings/global`).
+ *
+ * Vì sao chọn `settings` (không phải `themes`, không phải 1 collection ảo
+ * kiểu `_diagnostics/…`):
+ *   - `firestore.rules` của dự án này khai báo tường minh từng collection và
+ *     đóng catch-all (`match /{document=**}`) thành `if false` (xem
+ *     docs/BAO-MAT.md) — một collection ẢO không được khai báo riêng sẽ luôn
+ *     bị từ chối ghi dù tài khoản hợp lệ đến đâu, khiến phép dò thành false
+ *     negative. `settings/{settingId}` có rule `allow write: if isAdmin();`
+ *     không kèm điều kiện validate dữ liệu nào khác — phản ánh đúng "quyền
+ *     ghi admin" mà không cần biết trước hình dạng dữ liệu.
+ *   - QUAN TRỌNG hơn cả: `onSettings()` ở trên chỉ bao giờ đọc ĐÚNG 1 doc cố
+ *     định `settings/global` bằng `doc()` (không phải `collection()`) — khác
+ *     với `onThemes()` liệt kê TOÀN BỘ collection `themes`. Nghĩa là một doc
+ *     dò còn sót lại vĩnh viễn trong `settings` (nếu bước xoá bên dưới thất
+ *     bại) KHÔNG CÓ ĐƯỜNG NÀO lọt vào bất kỳ luồng đọc thật nào của app — an
+ *     toàn tuyệt đối trước rủi ro rò rỉ, không phụ thuộc việc dọn dẹp có
+ *     thành công hay không. `themes` (và collection-level đọc nói chung)
+ *     không có đặc tính này, nên KHÔNG dùng làm nơi dò — xem thêm lớp lọc dự
+ *     phòng RESERVED_ID_PREFIX trong buildThemesMap() ở trên, phòng khi có
+ *     collection nào khác trong tương lai cũng bị đọc theo kiểu liệt kê.
  * @returns {Promise<{id:string,status:"ok"|"fail"|"warn",label:string,message:string,fix?:string}>}
  */
 export async function checkWritePermission() {
@@ -1015,12 +1046,14 @@ export async function checkWritePermission() {
   try {
     const { db, mods } = await loadFirebase();
     const { doc, setDoc, deleteDoc } = mods.firestore;
-    const ref = doc(db, "themes", "__hbtPreflightProbe");
-    await setDoc(ref, { __preflightProbe: true }, { merge: true });
+    const ref = doc(db, "settings", RESERVED_ID_PREFIX + "PreflightProbe");
+    await setDoc(ref, { probe: true }, { merge: true });
     try {
       await deleteDoc(ref);
     } catch (e) {
-      /* dọn dẹp doc dò thất bại không quan trọng — không ảnh hưởng kết quả kiểm tra */
+      // Dọn dẹp thất bại KHÔNG ảnh hưởng kết quả kiểm tra lẫn không rò rỉ dữ
+      // liệu — xem giải thích ở JSDoc phía trên: settings/{settingId khác
+      // "global"} không được bất kỳ luồng đọc thật nào của app truy cập tới.
     }
     return { id: "firestore-write", status: "ok", label: "Quyền ghi Firestore", message: "Đăng nhập và ghi được dữ liệu — rules bảo mật hoạt động đúng." };
   } catch (err) {

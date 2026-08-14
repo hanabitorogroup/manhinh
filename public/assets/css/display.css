@@ -215,7 +215,17 @@ body::-webkit-scrollbar {
   grid-auto-rows: 1fr;
   grid-auto-flow: dense; /* lưới đặc — phòng thủ nếu số món ngoài dải 1..6 dự kiến */
   gap: clamp(0.625rem, 1.3vw, 1.625rem);
-  padding: clamp(0.625rem, 1.4vw, 1.875rem);
+  /* Lề ngoài an toàn — KHÔNG phải khoảng trống trang trí. Sau khi bỏ thanh
+     tiêu đề "MENU" (showHeader mặc định false, xem display.js), lưới đã
+     nới ra chiếm toàn bộ chiều cao panel; lề này chỉ còn nhiệm vụ chống
+     "overscan" — vài đầu phát/khung TV tín hiệu vẫn cắt mất một dải mép
+     ảnh dù đây là panel 4K độ nét gốc qua Android SoC, không phải CRT. Hạ
+     từ ~1.4vw (bản có tiêu đề) xuống ~1vw (~1% mỗi cạnh, gần mức "action
+     safe" tối thiểu 3.5-5% dùng cho phát sóng CRT truyền thống nhưng vẫn
+     còn dư so với overscan thực tế của panel số hiện đại) — đủ sát mép để
+     món ăn dùng trọn không gian 4K, vẫn còn biên để giá tiền/tên món không
+     bao giờ bị cắt nếu panel overscan nhẹ. */
+  padding: clamp(0.5rem, 1vw, 1.5rem);
   --layer-delay: 0.7s;
   backface-visibility: hidden;
 }

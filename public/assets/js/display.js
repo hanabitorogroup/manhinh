@@ -402,7 +402,10 @@ export function bootDisplay(screenId) {
         : "fade",
       distribution: s.distribution === "manual" ? "manual" : "auto",
       currency: typeof s.currency === "string" && s.currency ? s.currency : "zł",
-      showHeader: s.showHeader !== false,
+      // Mặc định TẮT (bảng hiệu không cần nhắc lại nó là menu) — chỉ bật khi
+      // admin đã lưu showHeader:true rõ ràng. Xem DEFAULT_SETTINGS ở
+      // data-layer.js để biết lý do đầy đủ.
+      showHeader: s.showHeader === true,
       headerText_pl: typeof s.headerText_pl === "string" && s.headerText_pl ? s.headerText_pl : "MENU",
       effectsLevel: ["full", "lite", "off"].includes(s.effectsLevel) ? s.effectsLevel : "full",
       reloadHour: clamp(Math.trunc(numOr(s.reloadHour, 4)), 0, 23),
@@ -502,7 +505,7 @@ export function bootDisplay(screenId) {
 
   function updateHeader() {
     if (!els.header) return;
-    const show = state.settings ? state.settings.showHeader : true;
+    const show = state.settings ? state.settings.showHeader : false;
     if (!show) {
       els.header.hidden = true;
       return;

@@ -72,7 +72,7 @@ const state = {
     transition: "fade",
     distribution: "auto",
     currency: "zł",
-    showHeader: true,
+    showHeader: false,
     headerText_pl: "MENU",
     effectsLevel: "full",
     reloadHour: 4,
@@ -1098,9 +1098,11 @@ function renderLayoutControlsFromSettings() {
   setIfNotFocused($("rotationSlider"), state.settings.rotationSeconds || 10);
   $("rotationVal").textContent = `${state.settings.rotationSeconds || 10}s`;
   if (document.activeElement !== $("transitionSelect")) $("transitionSelect").value = state.settings.transition || "fade";
-  $("showHeaderToggle").checked = state.settings.showHeader !== false;
+  // Mặc định TẮT (xem DEFAULT_SETTINGS ở data-layer.js) — chỉ bật ô tick khi
+  // giá trị lưu thật là showHeader:true, không suy đoán khi field vắng mặt.
+  $("showHeaderToggle").checked = state.settings.showHeader === true;
   setIfNotFocused($("headerTextInput"), state.settings.headerText_pl || "");
-  $("headerTextInput").disabled = state.settings.showHeader === false;
+  $("headerTextInput").disabled = state.settings.showHeader !== true;
   setIfNotFocused($("currencyInput"), state.settings.currency || "zł");
   const reloadHour = Number.isFinite(state.settings.reloadHour) ? state.settings.reloadHour : 4;
   setIfNotFocused($("reloadHourSlider"), reloadHour);

@@ -45,7 +45,10 @@ const DEFAULT_SETTINGS = {
   transition: "fade",
   distribution: "auto",
   currency: "zł",
-  showHeader: true,
+  // Mặc định TẮT: bảng hiệu 4K đã tự nói lên nó là menu, dải "MENU" chỉ chiếm
+  // chỗ đắt của màn hình mà không truyền thêm thông tin gì — chủ quán vẫn có
+  // thể bật lại (vd banner khuyến mãi theo mùa) qua tab Bố cục.
+  showHeader: false,
   headerText_pl: "MENU",
   effectsLevel: "full",
   // Giờ (0-23, giờ địa phương của màn hình) tự tải lại trang 1 lần/ngày để dọn

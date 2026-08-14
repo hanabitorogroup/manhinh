@@ -28,7 +28,8 @@ export const SEED_DATA = {
     transition: "fade",
     distribution: "auto",
     currency: "zł",
-    showHeader: true,
+    // Mặc định TẮT — xem lý do trong DEFAULT_SETTINGS ở data-layer.js.
+    showHeader: false,
     headerText_pl: "MENU",
     effectsLevel: "full",
     // Giờ tự tải lại trang 1 lần/ngày (xem ARCHITECTURE.md mục 9(d) và

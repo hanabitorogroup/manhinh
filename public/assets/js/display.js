@@ -246,14 +246,47 @@ export function bootDisplay(screenId) {
     // (WebView bị hệ điều hành throttle nền, hoặc JS bị treo cứng do lỗi lạ)
     // thì tự tải lại trang — bỏ qua khi document đang ẩn (document hidden),
     // vì đó là hành vi throttle rAF bình thường của trình duyệt, không phải
-    // treo máy thật.
-    state.watchdogTimer = setInterval(() => {
-      if (document.visibilityState === "hidden") return;
-      if (Date.now() - state.lastFrameAt > WATCHDOG_TIMEOUT_MS) {
-        location.reload();
-      }
-    }, WATCHDOG_CHECK_MS);
+    // treo máy thật. BỎ QUA HOÀN TOÀN ở ?preview=1: đây là watchdog cho máy
+    // phát signage không người trông coi, KHÔNG phải cho iframe xem trước
+    // trong tay admin. Tab "Xem trước" mở 4 iframe omhN.html?preview=1 cùng
+    // lúc — trên điện thoại, Safari throttle rAF của các iframe nền/không
+    // hoạt động, `lastFrameAt` vượt quá 90s, và watchdog trong MỖI iframe tự
+    // gọi location.reload() trên chính nó — 4 iframe cùng reload lặp lại vô
+    // hạn, khiến cả tab admin bị Safari coi là crash loop và giết chết
+    // ("Đã có sự cố xảy ra liên tục…"). document.visibilityState bên trong
+    // iframe phản ánh visibility của TAB CHA (không phải của iframe), nên
+    // điều kiện "hidden" phía trên không bao giờ đúng khi tab admin đang mở —
+    // guard đó không cứu được trường hợp này. Vì vậy cần chặn watchdog ngay
+    // từ đầu cho preview, giống hệt 2 timer resync/reload phía trên.
+    if (!isPreview) {
+      state.watchdogTimer = setInterval(() => {
+        if (document.visibilityState === "hidden") return;
+        if (Date.now() - state.lastFrameAt > WATCHDOG_TIMEOUT_MS) {
+          location.reload();
+        }
+      }, WATCHDOG_CHECK_MS);
+    }
   }
+
+  // Bù trôi cho watchdog: nếu tab bị ẩn/nền LÂU (điện thoại khoá màn hình,
+  // chuyển app, iOS treo tab nền…) thì `state.lastFrameAt` không được cập
+  // nhật suốt thời gian đó (rAF không chạy khi ẩn). Guard "hidden" trong
+  // watchdog chặn được việc reload TRONG LÚC ẩn, nhưng ngay khi tab hiện lại,
+  // rAF cần một nhịp để "bắt kịp" — nếu nhịp watchdog kế tiếp (tối đa
+  // WATCHDOG_CHECK_MS sau đó) chạy trước khi frame() kịp cập nhật lastFrameAt,
+  // hiệu số Date.now() - lastFrameAt vẫn còn > 90s (tính luôn cả thời gian ẩn
+  // trước đó) và trang sẽ bị reload NGAY KHI vừa quay lại — một cú giật cho
+  // người đang xem, dù máy không hề treo. Reset lastFrameAt ngay khi
+  // visibilitychange báo "visible" để mốc thời gian watchdog bắt đầu đếm lại
+  // từ 0 tại đúng lúc khung hình có thể tiếp tục chạy, thay vì cộng dồn thời
+  // gian đã trôi qua lúc tab còn ẩn. Lắp không điều kiện (kể cả preview) vì
+  // vô hại khi watchdog đã tắt, và hữu ích nếu sau này có timer khác dùng lại
+  // lastFrameAt.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      state.lastFrameAt = Date.now();
+    }
+  });
 
   /**
    * Tự tải lại đúng 1 lần/ngày vào settings.reloadHour (giờ địa phương của

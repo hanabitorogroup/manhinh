@@ -1341,7 +1341,42 @@ function wireOverrideFieldEvents() {
 
 /* =============================================================================
    TAB 5 — XEM TRƯỚC
+   -----------------------------------------------------------------------------
+   Bug đã vá (điện thoại bị Safari giết tab admin do lặp reload): tab này từng
+   mount CẢ 4 iframe omhN.html?preview=1 cùng lúc, mỗi iframe tự vẽ canvas hạt
+   + rAF riêng. Trên điện thoại, 4 vòng lặp đó đủ nặng để bị hệ điều hành
+   throttle, kích hoạt watchdog reload bên trong display.js (nay đã tắt hẳn ở
+   preview — xem display.js) — nhưng dù watchdog đã tắt, 4 canvas-animating
+   iframe cùng lúc vẫn là tải nặng không cần thiết cho một khung xem trước thu
+   nhỏ. Hai biện pháp giảm tải ở đây:
+     1) Lazy-load THẬT bằng IntersectionObserver: iframe chỉ gán `src` (tức
+        mới thật sự tải + chạy JS) khi ô xem trước của nó lọt vào viewport
+        (hoặc khi người dùng bấm "Phóng to"). Trên điện thoại, lưới xếp 1 cột
+        (xem admin.css @900px) nên ban đầu thường chỉ 1-2 ô lọt viewport —
+        giảm trực tiếp số iframe "sống" cùng lúc thay vì cả 4.
+     2) Ép `&safe=1` (tắt hẳn canvas hạt, xem display.js isSafe) cho các
+        iframe xem trước khi viewport là kích thước điện thoại (cùng ngưỡng
+        900px với layout 1 cột) — bố cục/món ăn/giá/theme màu vẫn hiển thị
+        đúng 100% (đó là thứ chủ quán cần soát), chỉ tắt hoạt ảnh hạt trang
+        trí vốn không quan trọng bằng và là nguồn tải CPU/GPU liên tục lớn
+        nhất trên máy yếu. Trên desktop/tablet vẫn giữ hiệu ứng đầy đủ.
    ========================================================================== */
+let previewObserver = null;
+
+function isMobilePreviewViewport() {
+  try {
+    return window.matchMedia && window.matchMedia("(max-width: 900px)").matches;
+  } catch (e) {
+    return false;
+  }
+}
+
+function previewFrameSrc(n, opts) {
+  const bust = opts && opts.bust ? `&_r=${Date.now()}` : "";
+  const safe = isMobilePreviewViewport() ? "&safe=1" : "";
+  return `../omh${n}.html?preview=1${safe}${bust}`;
+}
+
 function renderPreviewGrid() {
   const grid = $("previewGrid");
   if (!grid) return;
@@ -1352,11 +1387,49 @@ function renderPreviewGrid() {
         <strong>Màn hình ${n}</strong>
         <button type="button" class="btn btn-sm btn-ghost" data-expand="${n}">${state.expandedPreview === n ? "⤢ Thu nhỏ" : "⤢ Phóng to"}</button>
       </div>
-      <div class="preview-frame__stage" id="previewStage${n}">
-        <iframe id="previewFrame${n}" src="../omh${n}.html?preview=1" loading="lazy" title="Xem trước màn hình ${n}"></iframe>
+      <div class="preview-frame__stage" id="previewStage${n}" data-screen="${n}">
+        <iframe id="previewFrame${n}" data-screen="${n}" title="Xem trước màn hình ${n}"></iframe>
       </div>
     </div>`).join("");
   requestAnimationFrame(scalePreviewFrames);
+  setupPreviewLazyLoad();
+  // Ô đang "phóng to" bị các ô khác `display:none` (CSS .has-expanded) nên sẽ
+  // KHÔNG giao với viewport theo IntersectionObserver nếu bản thân nó cũng
+  // đang display:none trước khi expand — ép tải ngay, không chờ observer.
+  if (state.expandedPreview) loadPreviewFrame(state.expandedPreview);
+}
+
+function setupPreviewLazyLoad() {
+  if (previewObserver) {
+    previewObserver.disconnect();
+    previewObserver = null;
+  }
+  const stages = [1, 2, 3, 4].map((n) => $(`previewStage${n}`)).filter(Boolean);
+  if (typeof IntersectionObserver !== "function") {
+    // Trình duyệt không hỗ trợ IO (hiếm) — tải hết ngay, không giữ chân
+    // người dùng khỏi xem trước chỉ vì thiếu API tối ưu tải.
+    [1, 2, 3, 4].forEach(loadPreviewFrame);
+    return;
+  }
+  previewObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const n = parseInt(entry.target.dataset.screen, 10);
+        if (Number.isFinite(n)) loadPreviewFrame(n);
+      });
+    },
+    { rootMargin: "200px 0px" } // tải sớm một chút trước khi lọt hẳn vào khung nhìn để cuộn không bị giật
+  );
+  stages.forEach((stage) => previewObserver.observe(stage));
+}
+
+function loadPreviewFrame(n, opts) {
+  const iframe = $(`previewFrame${n}`);
+  if (!iframe) return;
+  if (iframe.dataset.loaded === "1" && !(opts && opts.force)) return;
+  iframe.dataset.loaded = "1";
+  iframe.src = previewFrameSrc(n, opts);
 }
 
 function scalePreviewFrames() {
@@ -1555,12 +1628,11 @@ function wireStaticEvents() {
     }
   });
 
-  // Xem trước
+  // Xem trước — nút này là hành động CHỦ ĐỘNG của người dùng (không phải tự
+  // healing), nên tải lại thẳng cả 4 kể cả ô chưa từng lọt viewport; vẫn tôn
+  // trọng safe=1 trên điện thoại qua previewFrameSrc().
   $("reloadAllBtn").addEventListener("click", () => {
-    [1, 2, 3, 4].forEach((n) => {
-      const iframe = $(`previewFrame${n}`);
-      if (iframe) iframe.src = `../omh${n}.html?preview=1&_r=${Date.now()}`;
-    });
+    [1, 2, 3, 4].forEach((n) => loadPreviewFrame(n, { force: true, bust: true }));
     toast("Đã tải lại 4 màn hình xem trước");
   });
   $("previewGrid").addEventListener("click", (e) => {

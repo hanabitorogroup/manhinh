@@ -99,6 +99,18 @@ jobs:
             exit 1
           fi
 
+      # ---------------------------------------------------------------------
+      # Thứ tự ưu tiên xác định Project ID (dừng ở nguồn đầu tiên có giá trị):
+      #   1. Secret FIREBASE_PROJECT_ID, nếu đã đặt.
+      #   2. Field project_id trong secret FIREBASE_SERVICE_ACCOUNT (chỉ khi
+      #      xác thực bằng service account — hành vi sẵn có).
+      #   3. projects.default trong .firebaserc — MỚI: repo tự chứa sẵn giá
+      #      trị này (đây chính là repo đang được deploy), nên là nguồn tự
+      #      nhiên nhất, không cần thêm secret nào.
+      #   4. Không nguồn nào có giá trị hợp lệ → dừng deploy với lỗi rõ ràng.
+      # File .firebaserc thiếu, JSON hỏng, hoặc còn giá trị mẫu PASTE_ đều
+      # được coi là "không có giá trị" (không crash, không deploy nhầm dự án).
+      # ---------------------------------------------------------------------
       - name: Xác định Firebase Project ID
         id: project
         env:
@@ -108,17 +120,25 @@ jobs:
         run: |
           set -euo pipefail
 
+          RC_FILE=".firebaserc"
+          RC_PROJECT_ID=""
+          if [ -f "$RC_FILE" ]; then
+            RC_PROJECT_ID=$(jq -re '.projects.default // empty' "$RC_FILE" 2>/dev/null || true)
+          fi
+          case "$RC_PROJECT_ID" in
+            PASTE_*) RC_PROJECT_ID="" ;;
+          esac
+
           if [ -n "${FIREBASE_PROJECT_ID:-}" ]; then
             PROJECT_ID="$FIREBASE_PROJECT_ID"
-          elif [ "$AUTH_MODE" = "service_account" ]; then
-            if ! PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT" | jq -re '.project_id' 2>/dev/null); then
-              echo "::error::Secret FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ (hoặc thiếu field project_id), và secret FIREBASE_PROJECT_ID cũng chưa được đặt. Kiểm tra lại nội dung đã dán vào secret FIREBASE_SERVICE_ACCOUNT — phải là TOÀN BỘ nội dung file JSON tải từ Firebase Console, không sửa/cắt bớt. Xem docs/GITHUB-ACTIONS.md."
-              exit 1
-            fi
+            echo "Nguồn Project ID: secret FIREBASE_PROJECT_ID."
+          elif [ "$AUTH_MODE" = "service_account" ] && PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT" | jq -re '.project_id' 2>/dev/null) && [ -n "$PROJECT_ID" ]; then
+            echo "Nguồn Project ID: field project_id trong secret FIREBASE_SERVICE_ACCOUNT."
+          elif [ -n "$RC_PROJECT_ID" ]; then
+            PROJECT_ID="$RC_PROJECT_ID"
+            echo "Nguồn Project ID: projects.default trong .firebaserc."
           else
-            # Chế độ token: FIREBASE_TOKEN không tự chứa project ID (không phải
-            # file JSON như service account) nên FIREBASE_PROJECT_ID là BẮT BUỘC.
-            echo "::error::Không xác định được Firebase Project ID: khi xác thực bằng FIREBASE_TOKEN, secret 'FIREBASE_PROJECT_ID' là bắt buộc (token không chứa sẵn project ID). Thêm secret 'FIREBASE_PROJECT_ID' (giá trị lấy ở Firebase Console → Project settings → General → Project ID). Xem docs/GITHUB-ACTIONS.md."
+            echo "::error::Không xác định được Firebase Project ID: đã thử lần lượt (1) secret 'FIREBASE_PROJECT_ID', (2) field 'project_id' trong secret 'FIREBASE_SERVICE_ACCOUNT' (chỉ áp dụng khi xác thực bằng service account), (3) giá trị 'projects.default' trong file .firebaserc của repo — không nơi nào có giá trị hợp lệ. Cách sửa NHANH NHẤT (không cần thêm secret GitHub nào): mở file .firebaserc, đặt 'projects.default' thành Project ID thật (Firebase Console → Project settings → General → Project ID), rồi commit lại. Hoặc thêm secret 'FIREBASE_PROJECT_ID' ở repo → Settings → Secrets and variables → Actions. Xem docs/GITHUB-ACTIONS.md."
             exit 1
           fi
 

@@ -71,14 +71,16 @@ khoản Google của bạn.
      Secret. Dán TOÀN BỘ nội dung file, kể cả dấu `{` và `}` ở đầu/cuối — không xóa,
      không sửa gì cả.
    - Bấm **Add secret**.
-6. Bấm **New repository secret** lần nữa, thêm secret thứ hai:
-   - **Name**: `FIREBASE_PROJECT_ID`
-   - **Secret**: dán đúng **Project ID** đã ghi lại ở Bước 1.1 (ví dụ `barkinglong-menu-a1b2c`)
-   - Bấm **Add secret**.
+6. (Tuỳ chọn — thường **không cần**) Bấm **New repository secret** lần nữa, thêm secret
+   `FIREBASE_PROJECT_ID` nếu muốn. **Ở Cách 1, secret này không bắt buộc**: file `.json`
+   đã tự chứa sẵn Project ID (field `project_id`), workflow tự đọc ra từ đó. Ngoài ra
+   workflow còn tự đọc Project ID từ file `.firebaserc` của repo nếu cần (xem mục 2) —
+   chỉ cần thêm secret này khi muốn ép deploy sang một project khác với project ghi
+   trong `.firebaserc`, mà không sửa file đó.
 
-Sau bước này, trong danh sách secrets phải thấy đúng 2 dòng: `FIREBASE_SERVICE_ACCOUNT`
-và `FIREBASE_PROJECT_ID`. GitHub sẽ **luôn ẩn giá trị thật** của secret (kể cả với chính
-bạn) — nếu dán sai, cách duy nhất là bấm **Update** và dán lại từ đầu.
+Sau bước này, trong danh sách secrets chỉ cần thấy `FIREBASE_SERVICE_ACCOUNT` là đủ.
+GitHub sẽ **luôn ẩn giá trị thật** của secret (kể cả với chính bạn) — nếu dán sai, cách
+duy nhất là bấm **Update** và dán lại từ đầu.
 
 ### Bước 1.3 — Cấp quyền cho "chìa khóa" trên Google Cloud
 
@@ -172,18 +174,23 @@ nên dọn token cũ để giảm rủi ro.
    - **Name**: `FIREBASE_TOKEN` (gõ đúng chữ hoa/thường và dấu gạch dưới)
    - **Secret**: dán nguyên văn chuỗi token bắt đầu bằng `1//` đã copy ở Bước A.5
    - Bấm **Add secret**.
-3. Thêm tiếp secret thứ hai (Cách 2 **bắt buộc** phải có secret này — token không tự
-   chứa Project ID như file `.json` ở Cách 1):
+3. (Tuỳ chọn — thường **không cần**) Thêm tiếp secret `FIREBASE_PROJECT_ID` nếu muốn:
    - **Name**: `FIREBASE_PROJECT_ID`
    - **Secret**: Project ID thật của dự án (Firebase Console → ⚙️ **Project settings** →
      tab **General** → dòng **Project ID**, ví dụ `barkinglong-menu-a1b2c` — **không**
      phải "Project name")
    - Bấm **Add secret**.
-4. Sau bước này, danh sách secrets phải có `FIREBASE_TOKEN` và `FIREBASE_PROJECT_ID`
-   (và **không cần** `FIREBASE_SERVICE_ACCOUNT` — workflow tự nhận ra chỉ có token và
-   dùng nó). Từ lần push tiếp theo, deploy chạy bình thường như Cách 1, chỉ khác là log
-   Actions sẽ hiện một dòng cảnh báo (màu vàng) nhắc rằng đang deploy bằng token cá nhân
-   — dòng này **vô hại**, chỉ là lời nhắc, không phải lỗi.
+
+   Token cá nhân (khác file `.json` ở Cách 1) **không tự chứa** Project ID, nhưng
+   workflow vẫn tự đọc được Project ID từ file `.firebaserc` ngay trong repo (mục 2) —
+   miễn là file đó đã điền Project ID thật, không còn `PASTE_YOUR_FIREBASE_PROJECT_ID`.
+   Chỉ cần tạo thêm secret `FIREBASE_PROJECT_ID` khi muốn ép deploy sang một project
+   khác với project ghi trong `.firebaserc`.
+4. Sau bước này, danh sách secrets chỉ cần có `FIREBASE_TOKEN` là đủ (và **không cần**
+   `FIREBASE_SERVICE_ACCOUNT` — workflow tự nhận ra chỉ có token và dùng nó). Từ lần push
+   tiếp theo, deploy chạy bình thường như Cách 1, chỉ khác là log Actions sẽ hiện một
+   dòng cảnh báo (màu vàng) nhắc rằng đang deploy bằng token cá nhân — dòng này **vô
+   hại**, chỉ là lời nhắc, không phải lỗi.
 
 #### Cách thu hồi (revoke) token — làm ngay nếu nghi ngờ bị lộ, hoặc khi chuyển sang Cách 1
 
@@ -234,6 +241,15 @@ Workflow sẽ **từ chối deploy** nếu 2 file sau vẫn còn giá trị mẫ
 
 Nếu bạn đã làm theo `DEPLOY.md` và deploy tay thành công ít nhất một lần rồi, hai file
 này chắc chắn đã điền đúng — bỏ qua mục này.
+
+> **`.firebaserc` giờ còn đóng thêm một vai trò nữa: là nguồn Project ID cho bước
+> deploy.** Workflow xác định Project ID theo thứ tự ưu tiên: (1) secret
+> `FIREBASE_PROJECT_ID` nếu có đặt, (2) field `project_id` bên trong secret
+> `FIREBASE_SERVICE_ACCOUNT` (chỉ khi dùng Cách 1), (3) giá trị `projects.default` đọc
+> thẳng từ `.firebaserc`. Vì vậy secret `FIREBASE_PROJECT_ID` **không còn bắt buộc** ở
+> cả hai cách xác thực nữa — chỉ cần `.firebaserc` đã điền Project ID thật (đúng việc
+> cần làm ở mục này) là đủ để bước xác định Project ID thành công, kể cả khi dùng
+> `FIREBASE_TOKEN`.
 
 ---
 
@@ -305,8 +321,7 @@ ngay:
 | `THIẾU THÔNG TIN XÁC THỰC FIREBASE` (không có secret nào) | Chưa tạo secret `FIREBASE_SERVICE_ACCOUNT` **và** cũng chưa tạo secret `FIREBASE_TOKEN` | Làm theo Cách 1 (Bước 1.1–1.2, khuyến nghị) hoặc Cách 2 (`firebase login:ci`) ở mục 1 — chỉ cần một trong hai. |
 | `Thiếu secret FIREBASE_SERVICE_ACCOUNT` | Đang ở nhánh Cách 1 nhưng chưa tạo secret này trên GitHub, hoặc gõ sai tên (phân biệt hoa/thường) | Làm lại Bước 1.2, kiểm tra tên secret gõ đúng y hệt `FIREBASE_SERVICE_ACCOUNT`. Hoặc nếu chính sách tổ chức chặn tạo service account key, chuyển sang Cách 2. |
 | `Secret FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ` | Khi dán vào ô Secret, nội dung bị cắt bớt, dán thiếu dấu `{`/`}`, hoặc lỡ dán nhầm nội dung khác (không phải file `.json`) | Mở lại file `.json` gốc, chọn toàn bộ (Ctrl+A) và copy lại từ đầu, dán đè vào secret (bấm **Update** trên secret cũ). |
-| `Không xác định được Firebase Project ID` (kèm chữ "khi xác thực bằng FIREBASE_TOKEN") | Đang dùng Cách 2 (token) nhưng chưa tạo secret `FIREBASE_PROJECT_ID` — token không tự chứa Project ID như file `.json` | Thêm secret `FIREBASE_PROJECT_ID` theo Bước B của Cách 2 (Firebase Console → Project settings → General → Project ID). |
-| `Không xác định được Firebase Project ID` (không kèm chữ token ở trên) | Thiếu secret `FIREBASE_PROJECT_ID` **và** file `.json` trong `FIREBASE_SERVICE_ACCOUNT` cũng không đọc được `project_id` | Thêm secret `FIREBASE_PROJECT_ID` theo Bước 1.2 (cách chắc ăn nhất), hoặc dán lại đúng file `.json` gốc chưa chỉnh sửa. |
+| `Không xác định được Firebase Project ID: đã thử lần lượt (1) secret 'FIREBASE_PROJECT_ID', (2) field 'project_id'..., (3) giá trị 'projects.default' trong .firebaserc...` | Cả 3 nguồn đều không có giá trị hợp lệ: không có secret `FIREBASE_PROJECT_ID`, không ở chế độ service account (hoặc JSON không đọc được `project_id`), **và** `.firebaserc` bị thiếu file / JSON hỏng / vẫn còn `PASTE_YOUR_FIREBASE_PROJECT_ID` | **Cách sửa nhanh nhất, không cần secret GitHub nào**: mở `.firebaserc`, đặt `projects.default` thành Project ID thật (Firebase Console → Project settings → General → Project ID), commit lại. (Cách khác: thêm secret `FIREBASE_PROJECT_ID`.) |
 | Bước "Deploy Hosting + Firestore rules" báo lỗi có chữ `403`, `PERMISSION_DENIED`, hoặc `caller does not have permission` | Cách 1: "chìa khóa" (service account) chưa được cấp đủ quyền trên Google Cloud. Cách 2: tài khoản Google đã tạo token không có đủ quyền trên dự án Firebase | Cách 1: làm lại Bước 1.3 — kiểm tra đã thêm đủ 3 vai trò: **Firebase Hosting Admin**, **Firebase Rules Admin**, **API Keys Viewer**, đúng project. Cách 2: đăng nhập bằng đúng tài khoản Google có quyền chỉnh sửa dự án Firebase khi chạy lại `firebase login:ci`. |
 | Lỗi có chữ `invalid_grant`, `invalid JWT`, hoặc `Getting metadata from plugin failed` | Cách 1: khóa `.json` đã bị **thu hồi** (revoke) hoặc **hết hạn** — thường do đã làm lại mục 4 (thu hồi khóa cũ) nhưng quên cập nhật secret mới | Tạo khóa mới (Bước 1.1) và cập nhật lại secret `FIREBASE_SERVICE_ACCOUNT` (Bước 1.2). |
 | Lỗi có chữ `Authentication Error`, `invalid_grant`, hoặc `Command requires authentication` ở nhánh dùng `FIREBASE_TOKEN` | Cách 2: token đã bị **thu hồi** (xem "Cách thu hồi token" ở mục 1), hết hiệu lực, hoặc mật khẩu/quyền tài khoản Google gốc đã đổi | Chạy lại `firebase login:ci` (Bước A của Cách 2) để lấy token mới, cập nhật lại secret `FIREBASE_TOKEN` (Bước B). |

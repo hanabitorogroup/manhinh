@@ -31,6 +31,12 @@ export const SEED_DATA = {
     showHeader: true,
     headerText_pl: "MENU",
     effectsLevel: "full",
+    // Giờ tự tải lại trang 1 lần/ngày (xem ARCHITECTURE.md mục 9(d) và
+    // DEFAULT_SETTINGS trong data-layer.js) — thiếu field này trong SEED_DATA
+    // từng khiến settings/global ghi qua seedSampleData() không có reloadHour,
+    // dù mọi nơi khác trong hệ thống (data-layer.js, display.js, admin.js) đều
+    // coi nó là 1 trong các field bắt buộc của settings/global.
+    reloadHour: 4,
     revision: 1,
     updatedAt: null,
   },

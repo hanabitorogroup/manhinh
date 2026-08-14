@@ -47,6 +47,11 @@ const {
   deleteAllMenuItems,
   runPreflight,
   checkWritePermission,
+  // GHI CHÚ — cũng KHÔNG nằm trong bảng "API bắt buộc" mục 4 ARCHITECTURE.md,
+  // theo đúng tiền lệ ở trên: dò bằng `typeof === 'function'` trước khi gọi
+  // (xem bootApp()). "Chữa" settings/global thiếu field ngay khi admin mở
+  // trang — xem JSDoc của hàm này trong data-layer.js.
+  healSettingsDefaults,
 } = DataLayer;
 
 // GHI CHÚ: onMedia/resolveImage không nằm trong bảng "API bắt buộc" ở mục 4
@@ -443,6 +448,34 @@ async function bootApp() {
   startDataSubscriptions();
   switchTab("overview");
   runPostLoginWriteCheckUI(); // Blocker 2 — gộp kết quả kiểm tra quyền ghi vào panel preflight
+  healSettingsOnce(); // Defect fix — settings/global thiếu field (vd chỉ có revision) tự "chữa lành" 1 lần mỗi phiên
+}
+
+/**
+ * Gọi healSettingsDefaults() đúng 1 lần mỗi lần bootApp() chạy (mỗi lần đăng
+ * nhập/tải trang thành công) — KHÔNG gọi lại mỗi khi onSettings() bắn sự
+ * kiện, để không tạo vòng lặp đọc/ghi Firestore không cần thiết mỗi lần
+ * document đổi (bản thân healSettingsDefaults() đã tự an toàn trước lặp vì
+ * chỉ ghi khi thật sự còn field thiếu — xem JSDoc trong data-layer.js — nhưng
+ * gọi 1 lần/phiên vẫn là cách dùng đúng, tiết kiệm quota). Không chặn UI: nếu
+ * lỗi (mất mạng, thiếu quyền ghi vì admins/<UID> chưa được thêm...) chỉ log
+ * ra console, KHÔNG toast lỗi cho admin — đây là hành vi "dọn dẹp nền", 4 màn
+ * hình đã có fallback an toàn qua normalizeSettings() nên không có gì khẩn
+ * cấp phải làm gián đoạn admin để báo lỗi.
+ */
+async function healSettingsOnce() {
+  if (DEMO) return; // DEMO luôn seed đủ field ngay từ đầu — không có gì để chữa
+  if (typeof healSettingsDefaults !== "function") return;
+  try {
+    const result = await healSettingsDefaults();
+    if (result && result.healed) {
+      console.info(
+        `[admin] Đã tự bổ sung ${result.fields.length} field còn thiếu trong settings/global: ${result.fields.join(", ")}.`
+      );
+    }
+  } catch (err) {
+    console.error("[admin] healSettingsDefaults lỗi (bỏ qua):", err);
+  }
 }
 
 function showLogin() {

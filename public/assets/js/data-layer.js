@@ -58,6 +58,49 @@ const DEFAULT_SETTINGS = {
 };
 
 // -----------------------------------------------------------------------------
+// "Chữa lành" settings/global thiếu field — dùng chung bởi seedSampleData()
+// (nút nhập dữ liệu mẫu, admin tự bấm) VÀ healSettingsDefaults() (tự động
+// chạy khi admin mở trang, xem export bên dưới). CHỈ so khớp theo khoá field
+// có tồn tại trong document hay không (Object.prototype.hasOwnProperty kiểu),
+// KHÔNG so theo giá trị — một field admin đã cố tình đặt (kể cả đặt về giá
+// trị "rỗng"/falsy như showHeader:false hay headerText_pl:"") luôn được coi
+// là "đã có", không bao giờ bị viết đè. `updatedAt` và `revision` cố tình
+// KHÔNG nằm trong danh sách "field cần chữa" — `updatedAt` luôn được set lại
+// mỗi lần có ghi thật (không có ý nghĩa "thiếu"/"đủ" riêng), còn `revision`
+// là bộ đếm tăng dần do saveSettings()/bumpRevisionAfterSave() quản lý, việc
+// coi nó là "thiếu" rồi tự chèn 0 có thể vô tình che mất 1 tăng revision thật
+// đang xảy ra đồng thời — an toàn hơn là để nguyên, `normalizeSettings()` ở
+// display.js đã tự có fallback revision:0 nếu field này thật sự chưa từng
+// tồn tại.
+const SETTINGS_HEAL_KEYS = Object.keys(DEFAULT_SETTINGS).filter(
+  (k) => k !== "updatedAt" && k !== "revision"
+);
+
+/**
+ * So một document settings/global hiện có (có thể null/rỗng) với danh sách
+ * field bắt buộc theo ARCHITECTURE.md mục 2 (cộng reloadHour, mục 9(d)) và
+ * trả về CHỈ các field đang THIẾU (chưa từng được ghi), lấy giá trị mặc định
+ * từ `template` (ưu tiên seed-data.js nếu gọi có truyền, rơi về
+ * DEFAULT_SETTINGS cho field nào seed-data.js không có). Không bao giờ trả về
+ * field đã tồn tại trong `currentData`, dù giá trị đó là gì — đây chính là
+ * điều kiện "không đè giá trị chủ quán đã tự chỉnh".
+ * @param {object|null|undefined} currentData - dữ liệu đọc được từ Firestore (getDoc().data()), hoặc null nếu doc chưa tồn tại
+ * @param {object} [template] - nguồn giá trị mặc định, thường là SEED_DATA.settings
+ * @returns {object} chỉ chứa các field còn thiếu
+ */
+function missingSettingsFields(currentData, template) {
+  const current = currentData && typeof currentData === "object" ? currentData : {};
+  const src = { ...DEFAULT_SETTINGS, ...(template || {}) };
+  const missing = {};
+  for (const key of SETTINGS_HEAL_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(current, key)) {
+      missing[key] = src[key];
+    }
+  }
+  return missing;
+}
+
+// -----------------------------------------------------------------------------
 // Pub/sub nội bộ (cho DEMO_MODE) — mỗi "kind" có 1 tập callback đang lắng nghe
 // -----------------------------------------------------------------------------
 const subs = {
@@ -664,11 +707,28 @@ async function docExistsIn(db, mods, col, id) {
   return snap.exists();
 }
 
+/** Trả về data() của 1 doc, hoặc null nếu chưa tồn tại (khác {} — phân biệt rõ "chưa có doc" với "doc rỗng"). */
+async function getDocDataIn(db, mods, col, id) {
+  const { doc, getDoc } = mods.firestore;
+  const snap = await getDoc(doc(db, col, id));
+  return snap.exists() ? snap.data() : null;
+}
+
 /**
  * Nhập 72 món mẫu (`seed-data.js`) vào Firebase THẬT bằng batched writes.
- * Chỉ ghi `settings/global` nếu CHƯA tồn tại (không đè cấu hình đã chỉnh),
- * và chỉ ghi các `themes/{id}` có trong SEED_DATA.themes mà CHƯA tồn tại —
- * không có tác dụng phụ nào lên dữ liệu người dùng đã tự lưu.
+ * Với `settings/global`: đọc document hiện có rồi CHỈ ghi thêm đúng những
+ * field đang thiếu so với danh sách bắt buộc (ARCHITECTURE.md mục 2 + mục
+ * 9(d)) — xem missingSettingsFields() ở trên. Nếu doc chưa tồn tại, "thiếu"
+ * là toàn bộ field, nên hiệu ứng giống hệt hành vi cũ (ghi đủ bộ mặc định).
+ * Nếu doc đã tồn tại nhưng KHÔNG đầy đủ (vd chỉ có `revision` — đúng tình
+ * trạng thật gặp phải sau lần seed đầu tiên trước khi sửa lỗi này), các field
+ * còn thiếu được bổ sung, còn field nào chủ quán đã tự chỉnh (kể cả đã chỉnh
+ * về giá trị trùng mặc định) thì giữ nguyên, không ghi lại. Tương tự, chỉ ghi
+ * các `themes/{id}` có trong SEED_DATA.themes mà CHƯA tồn tại — không có tác
+ * dụng phụ nào lên dữ liệu người dùng đã tự lưu. KHÔNG đụng tới 72 document
+ * đã có trong collection `menu` ngoài việc ghi/ghi-đè đúng 72 món mẫu (mode
+ * "add", merge:true theo id) hoặc xoá sạch trước khi ghi lại (mode "replace",
+ * theo lựa chọn admin đã xác nhận).
  *
  * @param {"add"|"replace"} mode
  *   "add"     — giữ nguyên món đang có, chỉ ghi thêm 72 món mẫu (món mẫu
@@ -714,12 +774,13 @@ export async function seedSampleData(mode, onProgress) {
   });
 
   const extraOps = [];
-  const settingsExists = await docExistsIn(db, mods, "settings", "global");
-  if (!settingsExists) {
+  const currentSettings = await getDocDataIn(db, mods, "settings", "global");
+  const missingSettings = missingSettingsFields(currentSettings, seed.settings);
+  if (Object.keys(missingSettings).length > 0) {
     extraOps.push({
       type: "set",
       ref: doc(db, "settings", "global"),
-      data: { ...(seed.settings || DEFAULT_SETTINGS), updatedAt: serverTimestamp() },
+      data: { ...missingSettings, updatedAt: serverTimestamp() },
       options: { merge: true },
     });
   }
@@ -736,6 +797,53 @@ export async function seedSampleData(mode, onProgress) {
   });
 
   return { written, deleted };
+}
+
+/**
+ * "Chữa lành" settings/global thiếu field ngay khi admin mở trang — KHÔNG
+ * cần chủ quán tự biết phải bấm "Nhập dữ liệu mẫu". Dùng runTransaction()
+ * (không phải getDoc() + setDoc() rời nhau) để AN TOÀN trước ghi đồng thời:
+ * nếu đúng lúc transaction đang chạy, admin (ở tab này hoặc tab khác) lưu
+ * một thay đổi thật vào đúng field đang được coi là "thiếu" (vd đổi
+ * itemsPerPage ngay khi trang vừa mở), Firestore phát hiện doc đã đổi giữa
+ * lúc đọc và lúc ghi của transaction và TỰ ĐỘNG CHẠY LẠI toàn bộ hàm callback
+ * với dữ liệu mới nhất — lần chạy lại đó sẽ thấy field vừa được lưu KHÔNG
+ * còn thiếu nữa nên không ghi đè lên nó. Không có transaction thường
+ * (getDoc rồi setDoc tách rời) sẽ có khe hở đúng bằng thời gian round-trip
+ * mạng để 2 việc ghi giẫm lên nhau.
+ *
+ * KHÔNG TỰ LẶP: hàm chỉ ghi khi thật sự còn field thiếu — sau lần ghi đầu
+ * tiên, doc đã đủ field nên mọi lần gọi lại sau đó (kể cả bị trigger lại bởi
+ * chính onSnapshot của lần ghi này) đều thấy "thiếu = {}" và không ghi gì cả,
+ * nên không có vòng lặp ghi-rồi-lại-thấy-thiếu-rồi-lại-ghi. Gọi hàm này 1 lần
+ * mỗi phiên (sau khi bootApp() ở admin.js) là đủ — không cần gọi lại mỗi khi
+ * settings/global đổi.
+ * @returns {Promise<{healed:boolean, fields:string[]}>}
+ */
+export async function healSettingsDefaults() {
+  if (DEMO) return { healed: false, fields: [] }; // DEMO luôn seed đủ ngay từ initData() -> ensureSeeded(), không có gì để chữa
+  try {
+    const { db, mods } = await loadFirebase();
+    const { doc, runTransaction, serverTimestamp } = mods.firestore;
+    const ref = doc(db, "settings", "global");
+    let healedFields = [];
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const current = snap.exists() ? snap.data() : null;
+      const missing = missingSettingsFields(current, (SEED_DATA || {}).settings);
+      healedFields = Object.keys(missing);
+      if (healedFields.length === 0) return; // đã đủ field — không ghi gì, transaction là no-op
+      tx.set(ref, { ...missing, updatedAt: serverTimestamp() }, { merge: true });
+    });
+    return { healed: healedFields.length > 0, fields: healedFields };
+  } catch (e) {
+    // Không được phép làm sập trang admin vì lỗi ở bước "tiện lợi" này (vd
+    // chưa đăng nhập nên chưa có quyền ghi) — màn hình vẫn dùng fallback của
+    // normalizeSettings() trong display.js như trước, chỉ là chưa "chữa" được
+    // Firestore ở lần mở này, sẽ thử lại ở phiên admin kế tiếp.
+    console.error("[data-layer] healSettingsDefaults lỗi (bỏ qua, không ảnh hưởng hiển thị):", e);
+    return { healed: false, fields: [], error: e };
+  }
 }
 
 /**

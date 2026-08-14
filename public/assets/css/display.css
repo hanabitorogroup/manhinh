@@ -4,9 +4,12 @@
    Thiết kế gốc cho màn hình 1920×1080, xem từ khoảng cách vài mét, 4 màn hình
    đặt cạnh nhau. Toàn bộ màu sắc/ font lấy từ CSS custom properties do
    `applyTheme(el, theme)` (trong themes.js) ghi vào phần tử #app — KHÔNG có màu
-   cứng nào trong các quy tắc thẻ món / chữ, trừ một lớp "scrim" đen trung tính
+   cứng nào trong các quy tắc thẻ món / chữ, trừ một lớp "scrim" trung tính
    dùng để đảm bảo độ tương phản chữ trên ảnh (bắt buộc về mặt kỹ thuật, không
-   thuộc bộ nhận diện theo mùa).
+   thuộc bộ nhận diện theo mùa) — "trung tính" ở đây nghĩa là KHÔNG do theme
+   chọn màu trực tiếp, nhưng nó TỰ THÍCH NGHI (đen hoặc trắng) theo textColor
+   của theme đang chọn, xem --scrim-rgb bên dưới và pickScrimBase() trong
+   themes.js.
 
    Danh sách biến CSS mà file này tiêu thụ (do applyTheme() thiết lập trên #app):
      --bg              nền chính
@@ -29,6 +32,16 @@
      --font-heading     font tiêu đề (tên món, logo)
      --font-body         font nội dung (mô tả)
      --overlay-image    ảnh trang trí phủ nền, có thể "none"
+     --scrim-rgb        (SUY RA bởi applyTheme(), không do theme ghi trực
+                         tiếp) "r,g,b" gốc màu lớp phủ sau thẻ món — "0,0,0"
+                         (đen) nếu textColor của theme sáng, "255,255,255"
+                         (trắng) nếu textColor tối — luôn cùng "cực" với chữ
+                         để chữ luôn có nền đủ tương phản, bất kể ảnh món.
+     --accent-ink       (SUY RA) màu chữ trên ribbon — đen hoặc trắng, chọn
+                         theo tương phản thật với --accent (thay vì giả định
+                         --bg luôn tối như trước đây).
+     --price-ink        (SUY RA) màu chữ trên price-badge — như --accent-ink
+                         nhưng so với --price.
 
    ---------------------------------------------------------------------------
    ĐỘC LẬP ĐỘ PHÂN GIẢI (quan trọng — đọc trước khi sửa kích thước bất kỳ đâu):
@@ -113,6 +126,13 @@ body::-webkit-scrollbar {
   --font-heading: "Bebas Neue", "Arial Narrow", sans-serif;
   --font-body: "Segoe UI", "Noto Sans", sans-serif;
   --overlay-image: none;
+  /* 3 biến suy ra bởi applyTheme() (themes.js) từ textColor/accent/priceColor
+     bằng công thức tương phản WCAG — KHÔNG do theme hay admin ghi trực tiếp.
+     Giá trị mặc định an toàn ở đây (đen) chỉ dùng trước khi applyTheme() chạy
+     lần đầu. Xem chú thích đầy đủ ở themes.js (pickScrimBase/pickInkForSolidBg). */
+  --scrim-rgb: 0, 0, 0;
+  --accent-ink: #000000;
+  --price-ink: #000000;
 }
 
 /* ---------- Canvas hiệu ứng hạt -------------------------------------------- */
@@ -322,7 +342,23 @@ body::-webkit-scrollbar {
   height: 100%;
 }
 
-/* Lớp phủ (scrim) để chữ luôn đọc được trên ảnh — trung tính, không đổi theo theme */
+/* Lớp phủ (scrim) để chữ luôn đọc được trên ảnh — nền TỰ THÍCH NGHI theo
+   textColor của theme (--scrim-rgb, xem themes.js) chứ không cứng màu đen:
+   trước đây scrim luôn đen nên chữ SÁNG (5/6 theme) đọc tốt nhưng chữ TỐI
+   (Easter — textColor #3a2417 thiết kế cho nền trang sáng) gần như biến mất
+   trên chính nền phủ tối này — đây là NGUYÊN NHÂN GỐC của lỗi "mô tả không
+   đọc được ở theme Easter", không phải bản thân màu #3a2417.
+
+   3 điểm dừng đo đạc lại bằng Playwright (đo vị trí thật của .card-name/
+   .card-desc theo % chiều cao .card-body, không đoán): tên món nằm rất gần
+   mép trên của .card-body (~73% chiều cao tính từ đáy) — bản gốc cho điểm
+   dừng 100% = alpha 0 (TRONG SUỐT hoàn toàn), nghĩa là ngay phía sau tên món
+   gần như không còn lớp phủ nào, chỉ còn dựa vào viền chữ (-webkit-text-
+   stroke) để đọc được trên ảnh sáng. Sửa: KHÔNG để điểm dừng trên cùng về 0
+   nữa — giữ 1 "sàn" tối thiểu .44 xuyên suốt .card-body, cộng 2 điểm dừng đầu
+   tăng từ bản gốc (.78→.90, .42→.74), để cả tên món lẫn mô tả luôn có nền đủ
+   tương phản kể cả khi ảnh món ngay dưới chữ rất sáng. Xem audit tương phản
+   đo bằng WCAG kèm số đo trước/sau (báo cáo kèm code review). */
 .card-body {
   position: absolute;
   left: 0;
@@ -330,7 +366,7 @@ body::-webkit-scrollbar {
   bottom: 0;
   z-index: 2;
   padding: clamp(0.75rem, 1.6vw, 1.875rem) clamp(0.75rem, 1.4vw, 1.625rem) clamp(0.625rem, 1.2vw, 1.25rem);
-  background: linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.42) 55%, rgba(0,0,0,0) 100%);
+  background: linear-gradient(to top, rgba(var(--scrim-rgb), .90) 0%, rgba(var(--scrim-rgb), .74) 55%, rgba(var(--scrim-rgb), .44) 100%);
   display: flex;
   flex-direction: column;
   gap: .3em;
@@ -347,13 +383,25 @@ body::-webkit-scrollbar {
   paint-order: stroke fill;
 }
 
+/* Trước đây KHÔNG có viền/bóng chữ (chỉ color: var(--text)) — đúng là "cardDesc
+   dùng var(--text) không viền" mà lỗi gốc đã chỉ ra. Cùng 1 rủi ro như
+   card-name (đứng trên scrim/ảnh, không phải trên 1 màu nền đặc) nên cần
+   cùng 1 lớp bảo vệ. Dùng -webkit-text-stroke mỏng hơn tên món (chữ nhỏ hơn,
+   viền dày bằng tên món sẽ làm đặc/dính nét) CỘNG text-shadow đổ theo 4 hướng
+   làm lớp đệm mềm thứ 2 — hữu ích khi WebView/engine nào đó không hỗ trợ
+   -webkit-text-stroke tốt bằng Chromium desktop (mục 9(c) ARCHITECTURE.md:
+   WebView Android có thể cũ hơn), để mô tả không phụ thuộc DUY NHẤT vào 1 kỹ
+   thuật viền chữ. */
 .card-desc {
   margin: 0;
   font-family: var(--font-body);
   font-size: clamp(.78rem, .7vw + .3rem, 1.2rem);
   line-height: 1.32;
   color: var(--text);
-  opacity: .88;
+  opacity: .92;
+  -webkit-text-stroke: calc(var(--outline-w) * .6) var(--outline);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 3px rgba(var(--scrim-rgb), .9), 0 0 6px rgba(var(--scrim-rgb), .7);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -366,7 +414,7 @@ body::-webkit-scrollbar {
   padding: .3em 1em;
   border-radius: 999px;
   background: var(--price);
-  color: var(--bg);
+  color: var(--price-ink);
   font-family: var(--font-body);
   font-weight: 700;
   font-size: clamp(.85rem, .8vw + .3rem, 1.5rem);
@@ -383,7 +431,7 @@ body::-webkit-scrollbar {
   transform: rotate(38deg);
   transform-origin: center;
   background: var(--accent);
-  color: var(--bg);
+  color: var(--accent-ink);
   text-align: center;
   padding: .38em 0;
   font-family: var(--font-body);

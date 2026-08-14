@@ -72,25 +72,54 @@ jobs:
 
           echo "OK: firebase-config.js và .firebaserc đã được cấu hình. Tiếp tục deploy."
 
+      # ---------------------------------------------------------------------
+      # Chọn phương thức xác thực. Ưu tiên FIREBASE_SERVICE_ACCOUNT (an toàn
+      # hơn — quyền giới hạn, không gắn với tài khoản Google cá nhân nào).
+      # Nếu chưa có (vd chính sách tổ chức chặn tạo service account key —
+      # constraints/iam.disableServiceAccountKeyCreation), dùng FIREBASE_TOKEN
+      # (token CI cá nhân, tạo bằng `firebase login:ci`) làm phương án thay
+      # thế. Xem docs/GITHUB-ACTIONS.md để biết cách tạo/thu hồi từng loại.
+      # ---------------------------------------------------------------------
+      - name: Chọn phương thức xác thực
+        id: auth
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "mode=service_account" >> "$GITHUB_OUTPUT"
+            echo "Xác thực bằng: FIREBASE_SERVICE_ACCOUNT (service account — phương án khuyến nghị)."
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo "mode=token" >> "$GITHUB_OUTPUT"
+            echo "Xác thực bằng: FIREBASE_TOKEN (token CI cá nhân qua 'firebase login:ci')."
+            echo "::warning::Đang deploy bằng FIREBASE_TOKEN — token cá nhân mang quyền tài khoản Google của chủ quán, kém an toàn hơn service account. Đây là phương án tạm thời khi chưa tạo được service account key. Xem docs/GITHUB-ACTIONS.md, mục 'Xác thực bằng token cá nhân (firebase login:ci)'."
+          else
+            echo "::error::THIẾU THÔNG TIN XÁC THỰC FIREBASE: cần đặt một trong hai secret sau ở repo → Settings → Secrets and variables → Actions — 'FIREBASE_SERVICE_ACCOUNT' (service account key JSON, phương án khuyến nghị) hoặc 'FIREBASE_TOKEN' (token CI cá nhân tạo bằng 'firebase login:ci', dùng khi tổ chức chặn tạo service account key). Hiện chưa thấy secret nào trong hai secret trên. Xem hướng dẫn từng bước tại docs/GITHUB-ACTIONS.md."
+            exit 1
+          fi
+
       - name: Xác định Firebase Project ID
         id: project
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          AUTH_MODE: ${{ steps.auth.outputs.mode }}
         run: |
           set -euo pipefail
 
           if [ -n "${FIREBASE_PROJECT_ID:-}" ]; then
             PROJECT_ID="$FIREBASE_PROJECT_ID"
-          else
-            if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
-              echo "::error::Thiếu secret FIREBASE_SERVICE_ACCOUNT (repo → Settings → Secrets and variables → Actions). Xem docs/GITHUB-ACTIONS.md."
-              exit 1
-            fi
+          elif [ "$AUTH_MODE" = "service_account" ]; then
             if ! PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT" | jq -re '.project_id' 2>/dev/null); then
               echo "::error::Secret FIREBASE_SERVICE_ACCOUNT không phải JSON hợp lệ (hoặc thiếu field project_id), và secret FIREBASE_PROJECT_ID cũng chưa được đặt. Kiểm tra lại nội dung đã dán vào secret FIREBASE_SERVICE_ACCOUNT — phải là TOÀN BỘ nội dung file JSON tải từ Firebase Console, không sửa/cắt bớt. Xem docs/GITHUB-ACTIONS.md."
               exit 1
             fi
+          else
+            # Chế độ token: FIREBASE_TOKEN không tự chứa project ID (không phải
+            # file JSON như service account) nên FIREBASE_PROJECT_ID là BẮT BUỘC.
+            echo "::error::Không xác định được Firebase Project ID: khi xác thực bằng FIREBASE_TOKEN, secret 'FIREBASE_PROJECT_ID' là bắt buộc (token không chứa sẵn project ID). Thêm secret 'FIREBASE_PROJECT_ID' (giá trị lấy ở Firebase Console → Project settings → General → Project ID). Xem docs/GITHUB-ACTIONS.md."
+            exit 1
           fi
 
           echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
@@ -102,6 +131,7 @@ jobs:
           node-version: "20"
 
       - name: Ghi thông tin xác thực service account
+        if: steps.auth.outputs.mode == 'service_account'
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -116,7 +146,8 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy Hosting + Firestore rules
+      - name: Deploy Hosting + Firestore rules (service account)
+        if: steps.auth.outputs.mode == 'service_account'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
           PROJECT_ID: ${{ steps.project.outputs.project_id }}
@@ -126,6 +157,25 @@ jobs:
             --project "$PROJECT_ID" \
             --only hosting,firestore:rules \
             --non-interactive
+
+      # Nhánh token: KHÔNG đặt GOOGLE_APPLICATION_CREDENTIALS ở đây (không có
+      # file service account nào được ghi ra trong nhánh này). Token được
+      # truyền thẳng qua flag --token của chính lệnh firebase, không qua biến
+      # môi trường trung gian, không in ra, và không dùng `set -x` hay
+      # `--debug` — cả hai đều có thể in nội dung token ra log Actions công
+      # khai.
+      - name: Deploy Hosting + Firestore rules (token)
+        if: steps.auth.outputs.mode == 'token'
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+        run: |
+          set -euo pipefail
+          npx --yes firebase-tools@15.26.0 deploy \
+            --project "$PROJECT_ID" \
+            --only hosting,firestore:rules \
+            --non-interactive \
+            --token "$FIREBASE_TOKEN"
 
       - name: Dọn file thông tin xác thực
         if: always()

@@ -26,7 +26,7 @@ thẻ tín dụng), miễn là bạn dùng đúng theo hướng dẫn này.
 1. Vào https://console.firebase.google.com/ , đăng nhập bằng Gmail.
 2. Bấm **"Add project" / "Tạo dự án"**.
 3. Đặt tên dự án, ví dụ `barkinglong-menu`. Firebase sẽ tự sinh ra 1 Project ID
-   (vd `barkinglong-menu-a1b2c`) — **ghi nhớ ID này**, sẽ cần ở Bước 5.
+   (vd `barkinglong-menu-a1b2c`) — **ghi nhớ ID này**, sẽ cần ở Bước 7.
 4. Ở bước hỏi Google Analytics: có thể bấm **"Tắt"** (không bắt buộc cho dự án
    này) để tạo nhanh hơn.
 5. Bấm **"Create project"** và chờ vài giây.
@@ -36,7 +36,7 @@ thẻ tín dụng), miễn là bạn dùng đúng theo hướng dẫn này.
 1. Trong menu bên trái, chọn **"Build" → "Firestore Database"**.
 2. Bấm **"Create database"**.
 3. Chọn chế độ **"Start in production mode"** (rules bảo mật đã có sẵn trong
-   dự án này, sẽ deploy ở Bước 6 — không cần chọn "test mode").
+   dự án này, sẽ deploy ở Bước 7 — không cần chọn "test mode").
 4. Chọn khu vực (location) gần Ba Lan nhất có sẵn, ví dụ `europe-west` hoặc
    `eur3`. **Không đổi được sau khi tạo**, nên chọn kỹ ở bước này.
 5. Bấm **"Enable"**.
@@ -55,7 +55,31 @@ thẻ tín dụng), miễn là bạn dùng đúng theo hướng dẫn này.
 > Ghi nhớ email + mật khẩu này lại — không có màn "quên mật khẩu" tự động
 > trong bản này, nếu quên phải vào lại đây để đổi.
 
-## Bước 4 — Lấy cấu hình Firebase và dán vào code
+## Bước 4 — Thêm chính bạn vào danh sách admin (BẮT BUỘC)
+
+Đăng nhập được ở trang `/admin` **chưa đủ** để lưu bất kỳ thứ gì (món ăn,
+giao diện, bố cục) — hệ thống chỉ cho phép ghi dữ liệu với tài khoản nằm
+trong 1 "danh sách trắng" admin riêng, tách biệt khỏi việc đăng nhập được hay
+không (xem đầy đủ lý do kỹ thuật ở `docs/BAO-MAT.md`). Bỏ qua bước này, mọi
+lần bấm "Lưu" — kể cả nút nhập dữ liệu mẫu ở Bước 8 — sẽ báo lỗi "permission
+denied".
+
+1. Vẫn ở tab **Authentication → Users** (Bước 3), tìm đúng dòng email vừa tạo
+   → copy cột **User UID** (chuỗi ký tự dài, không phải email).
+2. Menu bên trái → **"Build" → "Firestore Database"** → tab **"Data"**.
+3. Bấm **"Start collection"** → Collection ID gõ đúng: `admins`.
+4. Ở ô **Document ID**, dán đúng UID vừa copy ở bước 1 (không tự đặt tên
+   khác, không gõ email).
+5. Thêm 1 field bất kỳ để tài liệu không rỗng (Firebase Console bắt buộc),
+   ví dụ field `addedAt`, kiểu `string`, giá trị `2026-08-13` — Firestore
+   Rules không kiểm tra nội dung field này.
+6. Bấm **"Save"**.
+
+> Muốn thêm người quản trị thứ hai (nhân viên, người thân), hoặc muốn hiểu
+> rõ vì sao thiết kế tách "đăng nhập được" và "được phép sửa" ra 2 lớp, xem
+> `docs/BAO-MAT.md` mục 2 và 4.
+
+## Bước 5 — Lấy cấu hình Firebase và dán vào code
 
 1. Bấm biểu tượng bánh răng (⚙️) cạnh "Project Overview" (góc trên bên trái)
    → **"Project settings"**.
@@ -84,7 +108,7 @@ thẻ tín dụng), miễn là bạn dùng đúng theo hướng dẫn này.
    động chuyển từ **chế độ DEMO** sang **chế độ Firebase thật**
    (`DEMO_MODE = false` — xem đầu file `firebase-config.js`).
 
-## Bước 5 — Cài công cụ dòng lệnh Firebase
+## Bước 6 — Cài công cụ dòng lệnh Firebase
 
 Mở terminal, gõ lần lượt:
 
@@ -96,7 +120,7 @@ firebase login
 Lệnh `firebase login` sẽ mở trình duyệt để bạn đăng nhập bằng đúng tài khoản
 Google đã tạo dự án ở Bước 1.
 
-## Bước 6 — Điền Project ID và deploy
+## Bước 7 — Điền Project ID và deploy
 
 1. Mở file `.firebaserc`, thay `"PASTE_YOUR_FIREBASE_PROJECT_ID"` bằng Project
    ID thật (đã ghi nhớ ở Bước 1), ví dụ `"barkinglong-menu-a1b2c"`. Lưu lại.
@@ -114,16 +138,18 @@ Google đã tạo dự án ở Bước 1.
    `https://<project-id>.web.app` — mở thử địa chỉ đó, thêm `/admin` ở cuối để
    vào trang quản trị, đăng nhập bằng tài khoản đã tạo ở Bước 3.
 
-## Bước 7 — Nhập dữ liệu mẫu để thử nghiệm ngay (khuyên dùng)
+## Bước 8 — Nhập dữ liệu mẫu để thử nghiệm ngay (khuyên dùng)
 
-Ngay sau khi deploy xong (Bước 6), Firestore của bạn **hoàn toàn trống** —
+Ngay sau khi deploy xong (Bước 7), Firestore của bạn **hoàn toàn trống** —
 chưa có món ăn nào, cả 4 màn hình sẽ chỉ hiện màn hình chờ (logo, không có
 món). Đây là chuyện bình thường: chế độ DEMO tự nạp 72 món mẫu vào bộ nhớ
 trình duyệt, nhưng Firebase thật thì không tự nạp gì cả. Bạn **không cần gõ
 tay 72 món** để thử hệ thống — trang quản trị có sẵn nút nhập nhanh:
 
 1. Mở `https://<project-id>.web.app/admin` (địa chỉ terminal vừa in ra ở Bước
-   6), đăng nhập bằng tài khoản đã tạo ở Bước 3.
+   7), đăng nhập bằng tài khoản đã tạo ở Bước 3 — tài khoản đó phải đã được
+   thêm vào danh sách admin ở Bước 4, nếu không nút nhập dữ liệu mẫu sẽ báo
+   lỗi "permission denied" khi bấm.
 2. Ở tab **"Tổng quan"**, vì `menu` đang trống, bạn sẽ thấy ngay khung màu
    vàng **"Firestore chưa có món ăn nào"** với nút **"📥 Nhập 72 món ăn
    mẫu"**.
@@ -160,7 +186,7 @@ nên nội dung luôn khớp giữa 2 chế độ.
 > nếu bạn muốn — nhưng với 72 món, nút nhập nhanh ở trên tiết kiệm khoảng
 > 1-1.5 giờ so với gõ tay, mà vẫn không cần cài thêm npm hay viết code nào.
 
-## Bước 8 — Kết nối tên miền barkinglong.pl
+## Bước 9 — Kết nối tên miền barkinglong.pl
 
 1. Firebase Console → **"Hosting"** → **"Add custom domain"**.
 2. Nhập `barkinglong.pl` → **"Continue"**.
@@ -173,7 +199,7 @@ nên nội dung luôn khớp giữa 2 chế độ.
 5. Sau khi xác minh xong, Firebase tự cấp chứng chỉ SSL (https) miễn phí —
    không cần làm gì thêm.
 
-## Bước 9 — Trỏ 4 màn hình vào đúng URL
+## Bước 10 — Trỏ 4 màn hình vào đúng URL
 
 Sau khi domain hoạt động, mở trên mỗi màn hình (trình duyệt full-screen /
 kiosk mode) đúng 1 địa chỉ:
@@ -337,17 +363,25 @@ nằm gọn trong gói miễn phí, không bao giờ phát sinh chi phí ngoài 
 **Trang vẫn hiện dữ liệu DEMO (món ăn mẫu) dù đã điền `firebase-config.js`**
 → Kiểm tra lại: apiKey không được chứa chữ `"PASTE_"` nữa (dù chỉ 1 ký tự sai
 cũng khiến hệ thống tưởng chưa cấu hình). Mở lại file, so từng ký tự với đoạn
-code Firebase đưa ra ở Bước 4. Nhớ lưu file trước khi deploy lại.
+code Firebase đưa ra ở Bước 5. Nhớ lưu file trước khi deploy lại.
 
-**Đăng nhập `/admin` báo lỗi "permission denied" khi lưu món ăn**
-→ Chưa deploy `firestore.rules`, hoặc chưa đăng nhập đúng tài khoản đã tạo ở
-Bước 3. Chạy lại `firebase deploy --only firestore:rules`. Nếu vẫn lỗi, kiểm
-tra tab "Users" trong Authentication xem tài khoản còn tồn tại không.
+**Đăng nhập `/admin` thành công nhưng báo lỗi "permission denied" khi lưu món ăn**
+→ Gần như chắc chắn là bạn CHƯA làm Bước 4 ("Thêm chính bạn vào danh sách
+admin"). Hệ thống cố tình tách "đăng nhập được" và "được phép sửa" ra 2 lớp
+riêng — đăng nhập đúng mật khẩu không có nghĩa là được phép ghi dữ liệu; cần
+có thêm tài liệu `admins/<UID-của-bạn>` trong Firestore. Quay lại Bước 4 làm
+đúng theo từng bước (hoặc xem `docs/BAO-MAT.md` mục 2-3 để hiểu kỹ hơn), tải
+lại trang admin rồi thử lưu lại. Nếu đã có `admins/<UID>` mà vẫn lỗi, có thể
+`firestore.rules` chưa được deploy đúng bản mới nhất — chạy lại
+`firebase deploy --only firestore:rules`.
 
 **Vừa vào `/admin` (chưa kịp đăng nhập) đã thấy banner đỏ báo lỗi cấu hình**
 → Đây là tính năng tự kiểm tra (preflight), không phải lỗi phát sinh — đọc kỹ
-dòng "👉" trong banner, nó chỉ đúng bước nào trong Bước 2/3/4/6 ở trên đang
-thiếu hoặc sai. Sửa xong, tải lại trang để banner tự kiểm tra lại.
+dòng "👉" trong banner, nó chỉ đúng bước nào trong Bước 2/3/5/7 ở trên đang
+thiếu hoặc sai (preflight kiểm tra cấu hình/Firestore/Auth — KHÔNG kiểm tra
+được Bước 4 admin allowlist trước khi đăng nhập; lỗi "permission denied" sau
+khi đăng nhập thành công thuộc về mục ngay phía trên). Sửa xong, tải lại
+trang để banner tự kiểm tra lại.
 
 **Tải ảnh món ăn báo lỗi "Ảnh sau khi nén vẫn quá lớn"**
 → Ảnh gốc quá chi tiết/độ phân giải quá cao khiến sau khi nén WebP vẫn vượt

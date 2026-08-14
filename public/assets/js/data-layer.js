@@ -995,11 +995,17 @@ export async function runPreflight() {
 
 /**
  * Kiểm tra quyền GHI Firestore — chỉ có ý nghĩa SAU KHI signIn() thành công.
- * Ghi rồi xoá ngay 1 doc dò ở collection `_diagnostics` (KHÔNG thuộc mô hình
- * dữ liệu thật mô tả ở ARCHITECTURE.md mục 2, không đụng settings/menu/themes
- * thật) — rơi vào rule mặc định `match /{document=**}` (đọc công khai, ghi
- * cần đăng nhập), đúng loại quyền cần kiểm tra mà không có tác dụng phụ nào
- * lên dữ liệu hiển thị thật.
+ * Ghi rồi xoá ngay 1 doc dò ở collection `themes/{themeId}` (collection này
+ * theo thiết kế chấp nhận id tuỳ ý — xem ARCHITECTURE.md mục 2 — nên 1 id dò
+ * không va chạm với 6 theme preset thật, không có tác dụng phụ nào lên giao
+ * diện hiển thị). CỐ Ý dùng đúng collection thật (`themes`) thay vì 1
+ * collection ảo kiểu `_diagnostics/…`: `firestore.rules` của dự án này khai
+ * báo tường minh từng collection và đóng catch-all (`match /{document=**}`)
+ * thành `if false` — xem docs/BAO-MAT.md — nên một collection KHÔNG được khai
+ * báo riêng sẽ luôn bị từ chối ghi dù tài khoản có hợp lệ đến đâu, khiến phép
+ * dò trở thành false negative. `themes/{themeId}` có rule `allow write: if
+ * isAdmin();` không kèm điều kiện validate dữ liệu nào khác, nên phản ánh
+ * đúng "quyền ghi admin" mà không cần biết trước hình dạng dữ liệu.
  * @returns {Promise<{id:string,status:"ok"|"fail"|"warn",label:string,message:string,fix?:string}>}
  */
 export async function checkWritePermission() {
@@ -1008,9 +1014,9 @@ export async function checkWritePermission() {
   }
   try {
     const { db, mods } = await loadFirebase();
-    const { doc, setDoc, deleteDoc, serverTimestamp } = mods.firestore;
-    const ref = doc(db, "_diagnostics", "preflightWriteProbe");
-    await setDoc(ref, { checkedAt: serverTimestamp() }, { merge: true });
+    const { doc, setDoc, deleteDoc } = mods.firestore;
+    const ref = doc(db, "themes", "__hbtPreflightProbe");
+    await setDoc(ref, { __preflightProbe: true }, { merge: true });
     try {
       await deleteDoc(ref);
     } catch (e) {
@@ -1022,14 +1028,14 @@ export async function checkWritePermission() {
     if (code === "permission-denied") {
       return {
         id: "firestore-write", status: "fail", label: "Quyền ghi Firestore",
-        message: "Đã đăng nhập nhưng Firestore vẫn từ chối quyền ghi (permission-denied) — rules đã deploy nhưng đang chặn nhầm tài khoản đã đăng nhập.",
-        fix: "So sánh nội dung firestore.rules đã deploy (Firebase Console → Firestore Database → Rules) với file firestore.rules trong dự án, sửa cho khớp rồi chạy lại `firebase deploy --only firestore:rules`.",
+        message: "Đã đăng nhập nhưng Firestore vẫn từ chối quyền ghi (permission-denied). Nguyên nhân PHỔ BIẾN NHẤT: tài khoản đã đăng nhập nhưng chưa có trong danh sách trắng admin (thiếu tài liệu admins/<UID> trong Firestore) — đăng nhập được không có nghĩa là được phép sửa dữ liệu ở hệ thống này.",
+        fix: "Làm theo docs/BAO-MAT.md mục 2 (\"Thêm chính bạn vào danh sách admin\") để tạo tài liệu admins/<UID-của-bạn>, rồi tải lại trang. Nếu đã có admins/<UID> mà vẫn lỗi, kiểm tra firestore.rules đã deploy đúng phiên bản mới nhất chưa (`firebase deploy --only firestore:rules`).",
       };
     }
     return {
       id: "firestore-write", status: "warn", label: "Quyền ghi Firestore",
       message: `Không xác nhận được quyền ghi (mã lỗi: ${code || "không có"}${err && err.message ? ": " + err.message : ""}).`,
-      fix: "Thử lưu 1 thay đổi bất kỳ (vd đổi theme ở tab Giao diện) để kiểm tra thực tế; nếu lỗi lặp lại, kiểm tra lại firestore.rules.",
+      fix: "Thử lưu 1 thay đổi bất kỳ (vd đổi theme ở tab Giao diện) để kiểm tra thực tế; nếu lỗi lặp lại, kiểm tra lại firestore.rules và admins/<UID> (xem docs/BAO-MAT.md).",
     };
   }
 }

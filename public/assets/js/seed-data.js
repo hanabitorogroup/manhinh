@@ -482,7 +482,14 @@ export const SEED_DATA = {
     {
       id: "pad-thai",
       name_pl: "Pad Thai",
-      desc_pl: "",
+      // Duy nhất món này đổ desc_pl thật (thay vì "" như đa số món trong
+      // seed) — đây là món mặc định của settings.featuredByScreen[1] (xem
+      // trên) VÀ chính là món trong ảnh tham chiếu chủ quán đưa ("MAMA'S
+      // WOK / PAD THAI"). Trang nổi bật (display.css khối "Trang nổi bật",
+      // .feature-desc) render desc_pl khi có — bản mockup gốc CÓ mô tả, nên
+      // demo mặc định cần có nội dung thật để thấy đúng bố cục đã duyệt,
+      // không phải khoảng trống nơi lẽ ra là mô tả.
+      desc_pl: "Sos tamaryndowy, jajko, kiełki fasoli i orzeszki ziemne.",
       price: 29,
       priceSuffix: "",
       imageUrl: "/assets/img/dishes/pad-thai.webp",

@@ -773,17 +773,51 @@ body::-webkit-scrollbar {
   align-items: center;
   justify-content: center;
 }
+/* width/height:100% + object-fit:contain (KHÔNG PHẢI max-width/max-height +
+   auto như .card-media img phía trên) — khác biệt CỐ Ý, không phải sao chép
+   nhầm: max-width/max-height CHỈ CO NHỎ ảnh, không bao giờ phóng to ảnh nhỏ
+   hơn khung chứa (đúng ý với .card-media — khung nhỏ, ảnh nguồn luôn lớn
+   hơn khung). Khung .feature-media thì NGƯỢC LẠI — RẤT LỚN (gần nửa panel
+   4K, ~1950×2083px) trong khi ảnh nguồn cắt nền chỉ 1280×960px, nên
+   max-width/max-height+auto giữ nguyên ảnh ở kích thước GỐC nhỏ xíu giữa 1
+   khung khổng lồ (đo được thật bằng Playwright: ảnh 1280×960 "trôi" giữa
+   khung 1951×2083, không lấp được không gian — đúng NGƯỢC yêu cầu "ảnh món
+   RẤT LỚN"). width/height:100% buộc <img> LUÔN bằng đúng kích thước khung
+   chứa (dù ảnh nguồn nhỏ hơn), object-fit:contain rồi mới co ẢNH BÊN TRONG
+   khung đó theo đúng tỉ lệ khung hình (phóng to HOẶC thu nhỏ tuỳ khung),
+   không méo hình. */
 .feature-media img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   animation: kenBurns 16s ease-in-out infinite alternate;
 }
+/* Placeholder khi món CHƯA CÓ ảnh (đa số món, xem seed-data.js) — trước đây
+   chỉ 1 glyph nhỏ mờ (clamp 7-15rem, opacity .3) LỌT THỎM giữa ô ~48% panel,
+   trọng lượng thị giác không tương xứng ảnh thật ở CÙNG ô đó. Sửa: thêm 1
+   "đĩa" vòng tròn line-art LỚN (::before, cùng var(--text) với glyph — ăn
+   theo theme, KHÔNG màu cứng) làm khung, glyph danh mục (glyphFor(), vector
+   SVG — không phải bitmap, xem "Known traps" ARCHITECTURE.md) phóng to đặt
+   giữa. Kích thước quy theo % kích thước CHÍNH ô .feature-media (ô có kích
+   thước tuyệt đối do grid cha quyết định) nên tự co giãn đúng tỉ lệ ở mọi
+   viewport, không cần clamp() riêng — cùng cơ chế "photo dominant" như ảnh
+   thật, chỉ khác là line-art thay vì ảnh chụp. */
+.feature-media.placeholder {
+  position: relative;
+}
+.feature-media.placeholder::before {
+  content: "";
+  position: absolute;
+  width: 55%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: clamp(.15rem, .35vw, .45rem) solid var(--text);
+  opacity: .2;
+}
 .feature-media.placeholder .placeholder-glyph {
-  width: clamp(7rem, 15vw, 15rem);
-  opacity: .3;
+  position: relative;
+  width: 32%;
+  opacity: .55;
 }
 
 .feature-body {
@@ -831,56 +865,88 @@ body::-webkit-scrollbar {
   overflow-wrap: anywhere;
 }
 
+/* Giá từng biến thể — bản mockup gốc chủ quán đưa ("MAMA'S WOK / PAD THAI")
+   xếp các "vé" giá thành 1 CỘT DỌC gọn bên cạnh ảnh, không phải 1 hàng ngang
+   bọc dòng. `flex-wrap: wrap` cũ với 5 biến thể (Pad Thai: tofu/kurczak/
+   wieprzowina/wołowina/krewetki) bọc thành 4+1 — chiếc thứ 5 "mồ côi" rơi
+   xuống 1 mình ở hàng riêng, không có hàng nào lấp đầy, đúng thứ chủ quán
+   chỉ ra ("wrapped row that orphans one tag"). Đổi hẳn sang cột dọc
+   (flex-direction:column) — số biến thể bao nhiêu cũng xếp thẳng hàng, không
+   bao giờ bọc dòng/mồ côi. `align-items:stretch` + `.flag-tag` bên dưới đổi
+   thành hàng ngang (nhãn trái/giá phải) khiến MỖI vé rộng bằng đúng cột chữ
+   (bằng nhau), đọc như 1 bảng giá thật thay vì các chip rời rạc kích thước
+   khác nhau. */
 .feature-prices {
   display: flex;
-  flex-wrap: wrap;
-  gap: clamp(0.6rem, 1vw, 1.2rem);
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(0.5rem, 1vh, 1rem);
 }
 /* "Flag/arrow" — hình vé gốc của bản mockup đầu tiên (clip-path), ĐƯA TRỞ
    LẠI riêng cho trang này (thẻ lưới 6-up vẫn giữ chip bo tròn đơn giản hoá,
-   xem ghi chú ở .price-tag) — an toàn ở đây vì mỗi flag chỉ chứa 1 nhãn
-   biến thể (vd "Po tajsku") + 1 giá, không phải "tên món dài nhất + giá
-   rộng nhất" phải vừa 1 hàng hẹp như thẻ lưới. */
+   xem ghi chú ở .price-tag) — an toàn ở đây vì trang chỉ có 1 món, không có
+   ràng buộc "tên món dài nhất + giá rộng nhất" phải vừa 1 hàng hẹp như thẻ
+   lưới. Đổi flex-direction:column (nhãn TRÊN, giá DƯỚI, bản trước) sang row
+   (nhãn TRÁI, giá PHẢI, justify-content:space-between) — mỗi vé thấp hơn hẳn
+   nên 5-6 biến thể xếp cột dọc vẫn gọn trong panel, đúng dáng "bảng giá 1
+   dòng/lựa chọn" của mockup gốc thay vì khối vuông cồng kềnh. */
 .flag-tag {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: .08em;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.4em;
   background: var(--outline);
-  padding: .55em 1.1em .55em 1.35em;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 11% 50%);
+  padding: .5em 1.3em .5em 1.7em;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 5% 50%);
   font-family: var(--font-option);
   font-weight: 800;
   line-height: 1;
 }
 .flag-label {
-  font-size: clamp(0.85rem, .45vw + .55rem, 1.3rem);
+  font-size: clamp(0.8rem, .35vw + .5rem, 1.15rem);
   text-transform: uppercase;
   letter-spacing: .03em;
   color: var(--outline-ink);
   opacity: .82;
 }
 .flag-price {
-  font-size: clamp(1.5rem, 1vw + 1.1rem, 2.6rem);
+  font-size: clamp(1.35rem, .8vw + 1rem, 2.2rem);
   color: var(--price);
+  flex: none;
 }
 
 /* Legend nhỏ giải thích icon "Ostre" (mức độ cay) — yêu cầu "small
-   spice-level legend" trong ảnh tham chiếu. Dữ liệu món hiện chỉ có
-   spicy:true/false (KHÔNG có thang 1-3 số trong schema, xem
-   ARCHITECTURE.md mục 2) nên đây là 1 legend CHUNG giải thích ký hiệu
-   (chấm đỏ = cay) — KHÔNG bịa thêm 1 thang số không có thật trong dữ
-   liệu. Tái dùng đúng màu chấm tròn đã dùng cho .tag-pill.tag-spicy phía
-   trên (trung tính có chủ đích, không thuộc theme — xem ghi chú ở đó). */
+   spice-level legend" trong ảnh tham chiếu, CHỈ hiện khi món này thật sự
+   spicy:true (xem buildFeaturedArticle() trong display.js — item không cay
+   thì không có pill "Ostre" ở trên, legend giải thích nó cũng vô nghĩa nếu
+   luôn hiện). Dữ liệu món hiện chỉ có spicy:true/false (KHÔNG có thang 1-3
+   số trong schema, xem ARCHITECTURE.md mục 2) nên đây là 1 legend CHUNG giải
+   thích ký hiệu (chấm đỏ = cay) — KHÔNG bịa thêm 1 thang số không có thật
+   trong dữ liệu.
+   Thiết kế lại thành 1 PILL ĐẶC (không phải 1 dòng chữ mờ trôi nổi ở đáy) —
+   tái dùng ĐÚNG cặp nền/mực var(--outline)/var(--outline-ink) đã dùng cho
+   .flag-tag phía trên để 2 yếu tố "câu chuyện giá" (vé giá) và "chú thích
+   biểu tượng" (legend) đọc như CÙNG 1 hệ thống thị giác, không phải 2 thứ
+   rời rạc. `align-self:flex-start` giữ pill ôm sát nội dung (không giãn hết
+   chiều rộng cột chữ như .flag-tag) — đúng vai trò 1 chú thích PHỤ, nhỏ hơn
+   hẳn phần giá chính. Nằm trong dòng chảy flex bình thường của .feature-body
+   (KHÔNG margin-top:auto ghim đáy — auto-margin trên 1 item hút hết khoảng
+   trống rảnh về phía nó, vô hiệu hoá justify-content:center cho MỌI item
+   còn lại, từng đo được bằng Playwright: tên/giá dồn hết lên nửa trên,
+   khoảng trống lớn phía dưới trước khi tới legend). */
 .feature-legend {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: .45em;
-  margin-top: auto;
-  opacity: .85;
+  align-self: flex-start;
+  gap: .5em;
+  padding: .5em 1.1em .5em .85em;
+  border-radius: 999px;
+  background: var(--outline);
+  color: var(--outline-ink);
   font-family: var(--font-body);
-  font-size: clamp(0.8rem, .35vw + .55rem, 1.15rem);
-  color: var(--text);
+  font-weight: 700;
+  font-size: clamp(0.75rem, .3vw + .5rem, 1.05rem);
 }
 .feature-legend .legend-dot {
   width: .8em;

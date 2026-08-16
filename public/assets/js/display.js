@@ -728,10 +728,16 @@ export function bootDisplay(screenId) {
           currency
         )}</span></span>`;
 
-    // Legend nhỏ giải thích icon "Ostre" — xem ghi chú đầy đủ ở display.css
-    // (dữ liệu chỉ có spicy:true/false, không có thang số 1-3, nên đây là 1
-    // legend CHUNG giải thích ký hiệu, không phải mức độ RIÊNG của món này).
-    const legendHtml = `<div class="feature-legend"><span class="legend-dot"></span>Ostre = danie pikantne</div>`;
+    // Legend nhỏ giải thích icon "Ostre" — xem ghi chú đầy đủ ở display.css.
+    // CHỈ hiện khi CHÍNH món này spicy:true (khớp điều kiện dựng pill "Ostre"
+    // ở pills phía trên) — trước đây hiện VÔ ĐIỀU KIỆN dù món không hề cay,
+    // khiến nó đọc như 1 dòng chú thích lạc lõng không gắn với nội dung nào
+    // trên trang (đúng phần chủ quán chê "stray line"). Vẫn là 1 legend
+    // CHUNG giải thích ký hiệu (dữ liệu chỉ có spicy:true/false, không có
+    // thang số 1-3), không phải mức độ RIÊNG của món này.
+    const legendHtml = item.spicy
+      ? `<div class="feature-legend"><span class="legend-dot"></span>Ostre = danie pikantne</div>`
+      : "";
 
     const article = document.createElement("article");
     article.className = "feature";

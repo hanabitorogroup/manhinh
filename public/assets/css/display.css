@@ -890,6 +890,18 @@ body::-webkit-scrollbar {
    (nhãn TRÁI, giá PHẢI, justify-content:space-between) — mỗi vé thấp hơn hẳn
    nên 5-6 biến thể xếp cột dọc vẫn gọn trong panel, đúng dáng "bảng giá 1
    dòng/lựa chọn" của mockup gốc thay vì khối vuông cồng kềnh. */
+/* padding-left BẮT BUỘC dùng calc(5% + Nem) khớp ĐÚNG mốc "5% 50%" trong
+   clip-path — không phải hằng số em cố định (1.7em cũ). Lỗi thật đo được:
+   ở .flag-tag hẹp-vừa-đủ-nội-dung (bản mockup gốc/thẻ lưới), 5% bề rộng chỉ
+   vài px nên padding-left 1.7em luôn đủ che mũi tên clip-path. Nhưng
+   .feature-prices giờ xếp CỘT DỌC + align-items:stretch (xem khối trên) —
+   mỗi "vé" rộng bằng NGUYÊN CỘT CHỮ (~1696px ở 4K), khiến 5% quy ra ~85px,
+   VƯỢT XA padding-left cố định 1.7em (~24-31px ở cỡ chữ nhãn) — chữ "Z "
+   đầu dòng nhãn (vd "Z tofu") bị mũi tên clip-path ĂN MẤT, chỉ còn hiện
+   "TOFU" — đo bằng Playwright (querySelector textContent = "Z tofu" nhưng
+   ảnh chụp chỉ thấy "TOFU"). calc(5% + 1.2em) đảm bảo lề trái LUÔN vượt qua
+   điểm mũi tên ăn sâu nhất bất kể vé rộng bao nhiêu (5% đúng NGAY THEO % bề
+   rộng chính hộp, không cần biết trước con số px). */
 .flag-tag {
   display: flex;
   flex-direction: row;
@@ -897,7 +909,7 @@ body::-webkit-scrollbar {
   justify-content: space-between;
   gap: 1.4em;
   background: var(--outline);
-  padding: .5em 1.3em .5em 1.7em;
+  padding: .5em 1.3em .5em calc(5% + 1.2em);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 5% 50%);
   font-family: var(--font-option);
   font-weight: 800;

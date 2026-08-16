@@ -434,20 +434,50 @@ details.setup-panel .setup-panel__body { padding: 14px 18px; }
 
 .item-list { display: flex; flex-direction: column; gap: 8px; }
 .item-list-head {
-  display: grid; grid-template-columns: 28px 56px 2fr 1fr 90px 110px 70px 120px 100px;
+  display: grid; grid-template-columns: 40px 56px 2fr 1fr 120px 110px 90px 120px 100px;
   gap: 12px; padding: 0 12px 8px; font-size: 11.5px; color: var(--text-faint); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
 }
 .item-row {
-  display: grid; grid-template-columns: 28px 56px 2fr 1fr 90px 110px 70px 120px 100px;
+  display: grid; grid-template-columns: 40px 56px 2fr 1fr 120px 110px 90px 120px 100px;
   gap: 12px; align-items: center;
   background: var(--bg-elev-2); border: 1px solid var(--border-soft); border-radius: var(--radius-md);
   padding: 10px 12px;
 }
-.item-row.dragging { opacity: .4; }
-.item-row.drop-target { border-color: var(--accent); }
 .item-row.hidden-item { opacity: .55; }
-.drag-handle { cursor: grab; color: var(--text-faint); font-size: 16px; text-align: center; }
-.drag-handle:active { cursor: grabbing; }
+
+/* Đổi thứ tự bằng nút ▲▼ (thay cho kéo–thả HTML5 — gần như không dùng được
+   bằng ngón tay trên điện thoại), xem moveItem() trong admin.js. */
+.reorder-col { display: flex; flex-direction: column; gap: 3px; }
+.reorder-btn { padding: 4px; width: 30px; height: 26px; font-size: 11px; line-height: 1; }
+.reorder-btn:disabled { opacity: .25; }
+
+/* Ô "Giá" trong danh sách — sửa tại chỗ cho món 1 giá, hoặc mở trình sửa biến
+   thể cho món nhiều lựa chọn (>=2 variants), xem priceCellHtml() trong admin.js. */
+.price-inline-wrap { display: flex; }
+.price-inline-input {
+  width: 100%; max-width: 96px; padding: 7px 8px; font-weight: 700; color: var(--gold);
+  background: var(--bg-elev-1); border: 1px solid var(--border-soft); border-radius: 6px; font-size: 14px;
+}
+.price-inline-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.price-variant-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%;
+  background: var(--bg-elev-3); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; text-align: left;
+}
+.price-variant-btn:hover { border-color: var(--accent); }
+.price-variant-btn__count { font-size: 10.5px; font-weight: 700; color: var(--info); text-transform: uppercase; letter-spacing: .02em; }
+.price-variant-btn__range { font-size: 13px; font-weight: 800; color: var(--gold); }
+
+/* Nút "Đang bán / Hết hàng" — 1 chạm để đánh dấu hết món giữa ca, xem
+   data-action="toggle-visible" trong wireItemsListEvents() (admin.js). */
+.vis-toggle-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 100%;
+  padding: 8px 6px; min-height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-elev-3); color: var(--text-muted);
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.vis-toggle-btn.is-visible { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.vis-toggle-btn.is-hidden { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+
 .item-thumb {
   width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--bg-elev-3);
   border: 1px solid var(--border-soft);
@@ -457,7 +487,6 @@ details.setup-panel .setup-panel__body { padding: 14px 18px; }
 .item-desc { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .item-badge-tag { display: inline-block; margin-top: 4px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-hover); }
 .item-cat { font-size: 12.5px; color: var(--text-muted); }
-.item-price { font-weight: 700; color: var(--gold); font-size: 14px; }
 .item-actions { display: flex; gap: 4px; justify-content: flex-end; }
 
 .filter-hint { font-size: 12px; color: var(--text-faint); margin-bottom: 10px; }
@@ -513,6 +542,44 @@ details.setup-panel .setup-panel__body { padding: 14px 18px; }
 .preview-mini__row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .preview-mini__price { font-weight: 800; color: var(--preview-price, #ffd166); }
 .preview-mini__badge { font-size: 10px; font-weight: 800; background: var(--preview-accent, #ff3b57); color: #fff; padding: 2px 8px; border-radius: 6px; }
+
+/* =============================================================================
+   Trình sửa biến thể (variants) — modal Thêm/sửa món, xem
+   renderVariantEditorBody()/wireVariantEditorEvents() trong admin.js.
+   ========================================================================== */
+.variant-editor { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+
+/* Danh sách 1 chiều: mỗi dòng "label + giá + xoá" (nút xoá to, dễ chạm). */
+.variant-rows { display: flex; flex-direction: column; gap: 8px; }
+.variant-row { display: flex; gap: 8px; align-items: center; }
+.variant-row__label { flex: 1; min-width: 0; }
+/* max-width (không phải width) — input[type="number"] toàn cục đã có
+   `width:100%` với độ đặc thù CSS CAO HƠN 1 class đơn (attribute selector >
+   class selector), nên chỉ đặt width ở đây sẽ bị ghi đè âm thầm, khiến ô giá
+   nuốt hết chỗ và đẩy ô nhãn co lại gần như biến mất — xem lịch sử debug. */
+.variant-row__price { width: 100%; max-width: 104px; flex-shrink: 0; }
+.variant-rows .variant-row__remove {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-elev-3); color: var(--text-muted); font-size: 15px;
+}
+.variant-rows .variant-row__remove:hover { border-color: var(--bad); color: var(--bad); }
+
+.variant-apply-all {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  background: var(--bg-elev-1); border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 10px;
+}
+.variant-apply-all input { width: 100%; max-width: 180px; }
+
+.variant-grid-wrap { overflow-x: auto; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+.variant-grid { border-collapse: collapse; width: 100%; min-width: 280px; }
+.variant-grid th, .variant-grid td { padding: 6px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+.variant-grid thead th { background: var(--bg-elev-1); }
+.variant-grid tbody th { background: var(--bg-elev-1); text-align: left; white-space: nowrap; }
+.variant-grid th input[type="text"], .variant-grid td input[type="number"] { width: 100%; min-width: 68px; padding: 7px 8px; font-size: 13px; }
+.variant-row__remove[data-row-id], .variant-col__remove[data-col-id] {
+  background: transparent; border: none; color: var(--text-faint); font-size: 13px; padding: 4px 6px; margin-left: 2px;
+}
+.variant-row__remove[data-row-id]:hover, .variant-col__remove[data-col-id]:hover { color: var(--bad); }
 
 /* =============================================================================
    Tab 3 — Bố cục
@@ -605,25 +672,48 @@ details.setup-panel .setup-panel__body { padding: 14px 18px; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .layout-controls { grid-template-columns: 1fr; }
   .preview-grid { grid-template-columns: 1fr; }
+  /* Sơ đồ phân trang 4 màn hình: 4 cột cạnh nhau không đọc nổi ở bề rộng điện
+     thoại (chuỗi tiếng Việt dài) — xếp 2 cột, xem renderLayoutDiagram(). */
+  .layout-diagram { grid-template-columns: repeat(2, 1fr); }
+  .featured-screen-grid { grid-template-columns: 1fr; }
+
   .item-list-head { display: none; }
   .item-row {
-    grid-template-columns: 28px 56px 1fr;
-    grid-template-areas: "handle thumb main" "handle thumb price" "handle thumb actions";
-    row-gap: 6px;
+    grid-template-columns: 40px 56px 1fr;
+    grid-template-areas:
+      "reorder thumb main"
+      "reorder thumb price"
+      "reorder thumb vis"
+      "reorder thumb actions";
+    row-gap: 8px;
   }
-  .item-row .drag-handle { grid-area: handle; }
+  .item-row .reorder-col { grid-area: reorder; }
   .item-row .item-thumb { grid-area: thumb; }
   .item-row .item-main-mobile { grid-area: main; }
-  /* Giá luôn hiển thị trên di động — chủ quán đổi giá ngay tại quầy. */
+  /* Giá và trạng thái "Đang bán/Hết hàng" LUÔN hiển thị trên di động — đây là
+     2 tác vụ chủ quán làm nhiều nhất, ngay tại quầy, 1 tay. */
   .item-row .item-price-col { grid-area: price; display: block; }
+  .item-row .item-vis-col { grid-area: vis; display: flex; }
   .item-row .item-actions { grid-area: actions; justify-content: flex-start; }
-  .item-row .item-cat, .item-row .item-badge-col, .item-row .item-vis-col, .item-row .item-lock-col { display: none; }
+  .item-row .item-cat, .item-row .item-badge-col, .item-row .item-lock-col { display: none; }
+
+  .price-inline-input { max-width: 130px; font-size: 15px; padding: 9px 10px; }
+  .vis-toggle-btn { min-height: 44px; font-size: 13.5px; }
+  .reorder-btn { width: 38px; height: 36px; font-size: 13px; }
+
+  .variant-apply-all input { flex: 1; min-width: 120px; }
+
   .form-grid { grid-template-columns: 1fr; }
   .field-row { grid-template-columns: 1fr; }
   .topbar { padding: 0 14px; }
+
+  /* Toast: nhấc lên khỏi thanh tab dưới cùng, trải rộng gần hết bề ngang để
+     dễ đọc trong 1 tay thay vì góc dưới-phải chật hẹp trên desktop. */
+  .toast-stack { bottom: calc(var(--tabbar-h) + 14px); left: 12px; right: 12px; max-width: none; }
 }
 
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .theme-gallery { grid-template-columns: repeat(2, 1fr); }
+  .layout-diagram { grid-template-columns: 1fr; }
 }

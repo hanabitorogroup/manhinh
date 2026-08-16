@@ -104,9 +104,15 @@ const state = {
   previewInitialized: false,
   preflightChecks: [], // kết quả runPreflight()/checkWritePermission(), xem renderPreflightPanel()
   seedBusy: false, // đang nhập/xoá dữ liệu mẫu -> chặn bấm 2 lần chồng nhau
+  // Trình sửa biến thể (variants) — trạng thái LÀM VIỆC tạm thời trong lúc mở
+  // modal Thêm/Sửa món, xem deriveVariantEditorState()/buildVariantsPayloadFromEditor().
+  // { mode: "none"|"one"|"two", axis1Name, axis2Name, entries[], rows[], cols[], cellPrices{} }
+  variantEditor: { mode: "none" },
+  // Chế độ biến thể của món NGAY LÚC MỞ modal — dùng để biết chủ quán có chủ
+  // động chuyển từ "có biến thể" về "không có" hay không (chỉ khi đó mới thật
+  // sự xoá variantAxes/variants lúc lưu — xem handleItemFormSubmit()).
+  variantEditorOriginalMode: "none",
 };
-
-let dragSrcId = null;
 
 /* =============================================================================
    Tiện ích chung
@@ -797,7 +803,10 @@ async function openSeedDeleteFlow() {
 /* =============================================================================
    TAB 2 — MÓN ĂN
    ========================================================================== */
-function isDndEnabled() {
+/** Đổi thứ tự (▲▼) chỉ hợp lý khi đang xem TOÀN BỘ danh sách theo đúng thứ tự
+ * thật (order asc) — khi có tìm kiếm/lọc, danh sách hiển thị là 1 tập con nên
+ * "lên/xuống" sẽ không khớp với vị trí thật trong toàn bộ thực đơn. */
+function isReorderEnabled() {
   return !state.search && !state.categoryFilter;
 }
 
@@ -829,34 +838,61 @@ function itemThumbHtml(item) {
   return `<div class="item-thumb placeholder">🍽️</div>`;
 }
 
-// Chưa xây trình sửa biến thể (variants) trong trang quản trị — đó là việc
-// của lần sau (xem ghi chú đầu file/README task). Ở đây CHỈ đảm bảo không sập
-// và không hiện số gây hiểu lầm: món có variants[] (>=2 lựa chọn thật) không
-// có field `price` phẳng — `Number(undefined)||0` cũ sẽ hiện "0,00 zł" trông
-// như món miễn phí, rất dễ gây hiểu lầm cho chủ quán. Hiện số lượng lựa chọn
-// + khoảng giá thay vào đó (đọc-only, không có UI sửa).
-function priceColumnText(item) {
-  const variants = Array.isArray(item.variants)
+/** Danh sách variant hợp lệ (có giá là số) của 1 món — dùng ở nhiều nơi. */
+function validVariantsOf(item) {
+  return Array.isArray(item && item.variants)
     ? item.variants.filter((v) => v && Number.isFinite(Number(v.price)))
     : [];
-  if (variants.length <= 1 || Number.isFinite(Number(item.price))) {
-    return formatPriceVi(item.price, item.priceSuffix, state.settings.currency);
-  }
+}
+
+/** "17–23 zł" hoặc "17 zł" nếu mọi biến thể cùng giá. */
+function variantPriceRangeText(item, variants) {
   const prices = variants.map((v) => Number(v.price));
   const min = Math.min(...prices);
   const max = Math.max(...prices);
-  const range = min === max
+  return min === max
     ? formatPriceVi(min, item.priceSuffix, state.settings.currency)
     : `${formatPriceVi(min, "", "")}–${formatPriceVi(max, item.priceSuffix, state.settings.currency)}`;
-  return `${variants.length} biến thể (${range})`;
 }
 
-function itemRowHtml(item) {
-  const priceStr = priceColumnText(item);
+/**
+ * Ô "Giá" trong danh sách món:
+ *  - Món chỉ có 1 giá (không variants, hoặc variants chỉ có ≤1 lựa chọn thật)
+ *    -> ô nhập số SỬA NGAY TẠI CHỖ (tác vụ thường xuyên nhất — đổi giá — không
+ *    cần mở form đầy đủ). Lưu khi rời khỏi ô (blur/Enter), xem wireItemsListEvents().
+ *  - Món có ≥2 biến thể thật -> nút hiện "N biến thể (khoảng giá)", bấm vào mở
+ *    modal Sửa món (trình sửa biến thể — xem renderVariantEditorBody()).
+ */
+function priceCellHtml(item) {
+  const variants = validVariantsOf(item);
+  if (variants.length > 1) {
+    const range = variantPriceRangeText(item, variants);
+    return `<button type="button" class="price-variant-btn" data-action="edit" data-id="${escapeAttr(item.id)}" title="Sửa từng biến thể">
+      <span class="price-variant-btn__count">${variants.length} biến thể</span>
+      <span class="price-variant-btn__range">${range}</span>
+    </button>`;
+  }
+  const priceVal = Number.isFinite(Number(item.price)) ? Number(item.price) : "";
+  return `<div class="price-inline-wrap">
+    <input type="number" class="price-inline-input" inputmode="decimal" step="0.01" min="0"
+      value="${priceVal}" data-id="${escapeAttr(item.id)}"
+      aria-label="Giá món ${escapeAttr(item.name_pl || "")}" />
+  </div>`;
+}
+
+function itemRowHtml(item, list) {
   const lock = Number(item.screenLock) || 0;
+  const reorderOk = isReorderEnabled();
+  const idx = list.findIndex((i) => i.id === item.id);
+  const atTop = idx <= 0;
+  const atBottom = idx === list.length - 1;
+  const visible = item.visible !== false;
   return `
-  <div class="item-row${item.visible === false ? " hidden-item" : ""}" draggable="true" data-id="${escapeAttr(item.id)}">
-    <div class="drag-handle" title="Kéo để đổi thứ tự">⠿</div>
+  <div class="item-row${visible ? "" : " hidden-item"}" data-id="${escapeAttr(item.id)}">
+    <div class="reorder-col">
+      <button type="button" class="btn btn-icon btn-ghost reorder-btn" data-action="move-up" data-id="${escapeAttr(item.id)}" title="Chuyển lên" aria-label="Chuyển lên" ${(!reorderOk || atTop) ? "disabled" : ""}>▲</button>
+      <button type="button" class="btn btn-icon btn-ghost reorder-btn" data-action="move-down" data-id="${escapeAttr(item.id)}" title="Chuyển xuống" aria-label="Chuyển xuống" ${(!reorderOk || atBottom) ? "disabled" : ""}>▼</button>
+    </div>
     ${itemThumbHtml(item)}
     <div class="item-main-mobile">
       <div class="item-name">${escapeHtml(item.name_pl || "(chưa đặt tên)")}</div>
@@ -864,10 +900,12 @@ function itemRowHtml(item) {
       ${item.badge ? `<span class="item-badge-tag">${escapeHtml(item.badge)}</span>` : ""}
     </div>
     <div class="item-cat">${escapeHtml(item.category || "—")}</div>
-    <div class="item-price-col item-price">${priceStr}</div>
+    <div class="item-price-col">${priceCellHtml(item)}</div>
     <div class="item-badge-col">${item.badge ? escapeHtml(item.badge) : '<span style="color:var(--text-faint)">—</span>'}</div>
     <div class="item-vis-col">
-      <label class="switch"><input type="checkbox" class="vis-toggle" data-id="${escapeAttr(item.id)}" ${item.visible !== false ? "checked" : ""}><span class="track"></span></label>
+      <button type="button" class="vis-toggle-btn ${visible ? "is-visible" : "is-hidden"}" data-action="toggle-visible" data-id="${escapeAttr(item.id)}">
+        ${visible ? "Đang bán" : "Hết hàng"}
+      </button>
     </div>
     <div class="item-lock-col">
       <select class="lock-select" data-id="${escapeAttr(item.id)}">
@@ -898,14 +936,24 @@ function renderItemsTab() {
   $("categoryOptions").innerHTML = categories.map((c) => `<option value="${escapeAttr(c)}"></option>`).join("");
 
   const list = getFilteredSortedItems();
-  $("itemList").innerHTML = list.map(itemRowHtml).join("");
+  $("itemList").innerHTML = list.map((item) => itemRowHtml(item, list)).join("");
   $("itemEmptyState").classList.toggle("hidden", list.length > 0);
-  $("dndDisabledHint").classList.toggle("hidden", isDndEnabled());
+  $("dndDisabledHint").classList.toggle("hidden", isReorderEnabled());
 }
 
+/**
+ * Lưu 1 (hoặc vài) field của 1 món — dùng cho mọi thao tác "1 chạm" trong danh
+ * sách (đổi giá tại chỗ, bật/tắt hiện, ghim màn hình). Cập nhật lạc quan
+ * (hiện ngay), nhưng nếu lưu thất bại thì KHÔI PHỤC lại giá trị cũ và render
+ * lại — "silent failure" (giữ nguyên giá trị mới trên màn hình dù chưa lưu
+ * được xuống server) là điều tuyệt đối không được phép, xem yêu cầu "Obvious
+ * save state" của chủ quán.
+ */
 async function saveItemField(id, partial, msg = "Đã lưu") {
   const it = state.items.find((x) => x.id === id);
   if (!it) return;
+  const prevValues = {};
+  Object.keys(partial).forEach((k) => { prevValues[k] = it[k]; });
   Object.assign(it, partial);
   renderItemsTab();
   try {
@@ -913,7 +961,9 @@ async function saveItemField(id, partial, msg = "Đã lưu") {
     await bumpRevisionAfterSave();
     toast(msg);
   } catch (err) {
-    toast("Lỗi: " + errMsg(err), "err");
+    Object.assign(it, prevValues);
+    renderItemsTab();
+    toast("Lỗi: " + errMsg(err) + " — đã khôi phục giá trị cũ.", "err");
   }
 }
 
@@ -939,6 +989,24 @@ async function reorderItems(srcId, targetId) {
   } catch (err) {
     toast("Lỗi khi lưu thứ tự: " + errMsg(err), "err");
   }
+}
+
+/**
+ * Đổi thứ tự bằng nút ▲▼ (thay cho kéo–thả HTML5 — gần như không dùng được
+ * bằng ngón tay trên điện thoại). Chuyển món lên/xuống đúng 1 vị trí so với
+ * món liền kề trong danh sách đầy đủ (không lọc) — chỉ hoạt động khi
+ * isReorderEnabled() (không đang tìm kiếm/lọc danh mục).
+ * @param {string} id
+ * @param {"up"|"down"} direction
+ */
+function moveItem(id, direction) {
+  if (!isReorderEnabled()) return;
+  const sorted = sortItems(state.items);
+  const idx = sorted.findIndex((i) => i.id === id);
+  if (idx < 0) return;
+  const neighbor = direction === "up" ? sorted[idx - 1] : sorted[idx + 1];
+  if (!neighbor) return;
+  return reorderItems(id, neighbor.id);
 }
 
 async function duplicateItem(id) {
@@ -978,6 +1046,426 @@ async function deleteItemFlow(id) {
   }
 }
 
+/* =============================================================================
+   Trình sửa biến thể (variants) — món có variantAxes (0/1/2 trục) + variants[]
+   -----------------------------------------------------------------------------
+   Toàn bộ chỉnh sửa diễn ra trên state.variantEditor (bản nháp cục bộ, KHÔNG
+   đụng tới state.items/Firestore cho tới khi bấm "Lưu món") — nhờ vậy mở modal
+   rồi đổi qua lại chế độ/số dòng/số cột không bao giờ làm mất dữ liệu thật cho
+   tới khi chủ quán chủ động bấm Lưu, và huỷ modal (Huỷ/✕) không để lại dấu vết.
+
+     mode "none": không có biến thể -> dùng thẳng ô "Giá" (#fPrice) như cũ.
+     mode "one" : 1 trục -> danh sách {label, price} thêm/xoá tự do — đúng
+                  trường hợp "Dania główne: 5 vị cùng 1 giá" (nút "Áp dụng cho
+                  tất cả" bên dưới giải quyết đúng ca này).
+     mode "two" : 2 trục -> bảng: hàng = trục 1, cột = trục 2, mỗi ô 1 giá —
+                  đúng trường hợp Pho (Białko × Wielkość).
+   ========================================================================== */
+let _variantIdSeq = 0;
+function nextVariantId(prefix) {
+  _variantIdSeq += 1;
+  return `${prefix}${_variantIdSeq}`;
+}
+
+/** Đọc item.variantAxes/variants hiện có -> dựng state làm việc cho trình sửa. */
+function deriveVariantEditorState(item) {
+  const axes = Array.isArray(item && item.variantAxes) ? item.variantAxes : [];
+  const rawVariants = validVariantsOf(item || {});
+
+  if (rawVariants.length <= 1) {
+    return { mode: "none" };
+  }
+
+  if (axes.length >= 2) {
+    const rows = [];
+    const rowIndex = new Map();
+    const cols = [];
+    const colIndex = new Map();
+    const cellPrices = {};
+    rawVariants.forEach((v) => {
+      const a0 = Array.isArray(v.axis) ? String(v.axis[0] ?? "") : "";
+      const a1 = Array.isArray(v.axis) ? String(v.axis[1] ?? "") : "";
+      if (!rowIndex.has(a0)) { const rid = nextVariantId("r"); rowIndex.set(a0, rid); rows.push({ id: rid, label: a0 }); }
+      if (!colIndex.has(a1)) { const cid = nextVariantId("c"); colIndex.set(a1, cid); cols.push({ id: cid, label: a1 }); }
+      const rid = rowIndex.get(a0);
+      const cid = colIndex.get(a1);
+      cellPrices[rid] = cellPrices[rid] || {};
+      cellPrices[rid][cid] = Number(v.price);
+    });
+    return { mode: "two", axis1Name: axes[0] || "", axis2Name: axes[1] || "", rows, cols, cellPrices };
+  }
+
+  const entries = rawVariants.map((v) => ({
+    id: nextVariantId("e"),
+    label: Array.isArray(v.axis) ? String(v.axis[0] ?? "") : "",
+    price: Number(v.price),
+  }));
+  return { mode: "one", axis1Name: axes.length === 1 ? (axes[0] || "") : "", entries };
+}
+
+/** { variantAxes, variants, price } sẵn sàng ghi vào Firestore, hoặc null nếu mode "none". */
+function buildVariantsPayloadFromEditor(ed) {
+  if (!ed || ed.mode === "none") return null;
+  if (ed.mode === "one") {
+    const variants = ed.entries
+      .filter((en) => Number.isFinite(Number(en.price)))
+      .map((en) => ({ axis: [String(en.label || "").trim()], price: Number(en.price) }));
+    const axisName = String(ed.axis1Name || "").trim();
+    const prices = variants.map((v) => v.price);
+    return { variantAxes: axisName ? [axisName] : [], variants, price: prices.length ? Math.min(...prices) : 0 };
+  }
+  const variants = [];
+  ed.rows.forEach((r) => {
+    ed.cols.forEach((c) => {
+      const val = ed.cellPrices[r.id] && ed.cellPrices[r.id][c.id];
+      if (Number.isFinite(Number(val))) {
+        variants.push({ axis: [String(r.label || "").trim(), String(c.label || "").trim()], price: Number(val) });
+      }
+    });
+  });
+  const axis1 = String(ed.axis1Name || "").trim();
+  const axis2 = String(ed.axis2Name || "").trim();
+  const prices = variants.map((v) => v.price);
+  return { variantAxes: [axis1, axis2], variants, price: prices.length ? Math.min(...prices) : 0 };
+}
+
+function minPriceOfEditor(ed) {
+  const built = buildVariantsPayloadFromEditor(ed);
+  if (!built || !built.variants.length) return NaN;
+  return Math.min(...built.variants.map((v) => v.price));
+}
+
+/** Số lựa chọn "có thật" (có giá hoặc đã đặt tên) — dùng để cảnh báo trước khi xoá. */
+function countVariantEditorEntries(ed) {
+  if (!ed) return 0;
+  if (ed.mode === "one") {
+    return ed.entries.filter((e) => Number.isFinite(Number(e.price)) || (e.label && e.label.trim())).length;
+  }
+  if (ed.mode === "two") {
+    let n = 0;
+    ed.rows.forEach((r) => ed.cols.forEach((c) => {
+      if (Number.isFinite(Number(ed.cellPrices[r.id] && ed.cellPrices[r.id][c.id]))) n++;
+    }));
+    return n;
+  }
+  return 0;
+}
+
+/** Dựng lại state làm việc khi đổi "Số lượng lựa chọn giá" — cố giữ dữ liệu đã nhập khi có thể. */
+function switchVariantEditorMode(oldEd, newMode) {
+  if (newMode === "none") return { mode: "none" };
+
+  if (newMode === "one") {
+    if (oldEd && oldEd.mode === "one") return oldEd;
+    if (oldEd && oldEd.mode === "two") {
+      const entries = oldEd.rows.map((r) => {
+        const prices = oldEd.cols
+          .map((c) => oldEd.cellPrices[r.id] && oldEd.cellPrices[r.id][c.id])
+          .map(Number)
+          .filter((n) => Number.isFinite(n));
+        return { id: r.id, label: r.label, price: prices.length ? Math.min(...prices) : null };
+      });
+      return { mode: "one", axis1Name: oldEd.axis1Name || "", entries: entries.length ? entries : [{ id: nextVariantId("e"), label: "", price: null }] };
+    }
+    const flat = parseFloat($("fPrice").value);
+    return { mode: "one", axis1Name: "", entries: [{ id: nextVariantId("e"), label: "", price: Number.isFinite(flat) ? flat : null }] };
+  }
+
+  // newMode === "two"
+  if (oldEd && oldEd.mode === "two") return oldEd;
+  if (oldEd && oldEd.mode === "one") {
+    const col = { id: nextVariantId("c"), label: "" };
+    const rows = oldEd.entries.map((en) => ({ id: en.id, label: en.label }));
+    const cellPrices = {};
+    oldEd.entries.forEach((en) => { cellPrices[en.id] = { [col.id]: en.price }; });
+    return {
+      mode: "two", axis1Name: oldEd.axis1Name || "", axis2Name: "",
+      rows: rows.length ? rows : [{ id: nextVariantId("r"), label: "" }],
+      cols: [col], cellPrices,
+    };
+  }
+  const flat = parseFloat($("fPrice").value);
+  const r = { id: nextVariantId("r"), label: "" };
+  const c = { id: nextVariantId("c"), label: "" };
+  return {
+    mode: "two", axis1Name: "", axis2Name: "",
+    rows: [r], cols: [c],
+    cellPrices: { [r.id]: { [c.id]: Number.isFinite(flat) ? flat : null } },
+  };
+}
+
+async function handleVariantModeChange(newMode) {
+  const ed = state.variantEditor || { mode: "none" };
+  if (newMode === ed.mode) return;
+  const rank = { none: 0, one: 1, two: 2 };
+  if (rank[newMode] < rank[ed.mode]) {
+    const count = countVariantEditorEntries(ed);
+    if (count > 0) {
+      const ok = await showConfirm(
+        "Đổi số lượng lựa chọn giá",
+        newMode === "none"
+          ? `Chuyển về "1 giá duy nhất" sẽ xoá toàn bộ ${count} lựa chọn giá hiện có (chỉ áp dụng sau khi bạn bấm "Lưu món"). Giá thấp nhất hiện tại sẽ được giữ làm giá mới.`
+          : `Chuyển về "Một chiều" sẽ gộp lại các lựa chọn hiện có, có thể làm mất một số mức giá khác nhau theo cột. Tiếp tục?`,
+        "Tiếp tục",
+      );
+      if (!ok) return;
+    }
+  }
+  if (newMode === "none") {
+    const minP = minPriceOfEditor(ed);
+    if (Number.isFinite(minP)) $("fPrice").value = minP;
+  }
+  state.variantEditor = switchVariantEditorMode(ed, newMode);
+  renderVariantModeSeg();
+  renderVariantEditorBody();
+  updateFlatPriceFieldVisibility();
+  updateItemLivePreview();
+}
+
+function renderVariantModeSeg() {
+  const seg = $("variantModeSeg");
+  if (!seg) return;
+  const mode = (state.variantEditor && state.variantEditor.mode) || "none";
+  seg.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.val === mode));
+}
+
+/** Ô "Giá *" phẳng chỉ còn ý nghĩa (và chỉ còn hiện) ở chế độ "Không có". */
+function updateFlatPriceFieldVisibility() {
+  const ed = state.variantEditor;
+  const isFlat = !ed || ed.mode === "none";
+  const wrap = $("flatPriceField");
+  if (wrap) wrap.classList.toggle("hidden", !isFlat);
+  const input = $("fPrice");
+  if (input) input.required = isFlat; // ô ẩn không được cản constraint validation của form
+}
+
+function variantSummaryPriceText(ed) {
+  const built = buildVariantsPayloadFromEditor(ed);
+  if (!built || !built.variants.length) return "—";
+  return formatPriceVi(built.price, "", state.settings.currency);
+}
+
+function renderOneAxisEditorHtml(ed) {
+  return `
+  <div class="variant-editor variant-editor--one">
+    <p class="field-hint">Giá thấp nhất hiển thị trên màn hình: <strong id="variantSummaryPrice">${variantSummaryPriceText(ed)}</strong> (tự tính từ danh sách bên dưới).</p>
+    <div class="field">
+      <label for="variantAxis1Name">Tên trục (vd: Vị, Size)</label>
+      <input type="text" id="variantAxis1Name" value="${escapeAttr(ed.axis1Name)}" placeholder="VD: Smak" />
+    </div>
+    <div class="variant-rows" id="variantOneRows">
+      ${ed.entries.map((en) => `
+        <div class="variant-row" data-entry-id="${en.id}">
+          <input type="text" class="variant-row__label" data-entry-id="${en.id}" placeholder="Tên lựa chọn (vd: Pikantne)" value="${escapeAttr(en.label)}" />
+          <input type="number" class="variant-row__price" data-entry-id="${en.id}" step="0.01" min="0" placeholder="Giá" value="${en.price ?? ""}" />
+          <button type="button" class="variant-row__remove" data-entry-id="${en.id}" title="Xoá lựa chọn" aria-label="Xoá lựa chọn">🗑️</button>
+        </div>`).join("")}
+    </div>
+    <button type="button" class="btn btn-sm" id="variantOneAddBtn">➕ Thêm lựa chọn</button>
+
+    <div class="variant-apply-all">
+      <input type="number" id="variantOneApplyPrice" step="0.01" min="0" placeholder="Giá áp dụng cho tất cả" />
+      <button type="button" class="btn btn-sm btn-primary" id="variantOneApplyBtn">Áp dụng cho tất cả</button>
+    </div>
+  </div>`;
+}
+
+function renderTwoAxisEditorHtml(ed) {
+  return `
+  <div class="variant-editor variant-editor--two">
+    <p class="field-hint">Giá thấp nhất hiển thị trên màn hình: <strong id="variantSummaryPrice">${variantSummaryPriceText(ed)}</strong> (tự tính từ bảng bên dưới).</p>
+    <div class="field-row">
+      <div class="field">
+        <label for="variantAxis1Name">Tên trục hàng (vd: Białko)</label>
+        <input type="text" id="variantAxis1Name" value="${escapeAttr(ed.axis1Name)}" placeholder="VD: Białko" />
+      </div>
+      <div class="field">
+        <label for="variantAxis2Name">Tên trục cột (vd: Wielkość)</label>
+        <input type="text" id="variantAxis2Name" value="${escapeAttr(ed.axis2Name)}" placeholder="VD: Wielkość" />
+      </div>
+    </div>
+
+    <div class="variant-grid-wrap">
+      <table class="variant-grid">
+        <thead>
+          <tr>
+            <th></th>
+            ${ed.cols.map((c) => `<th>
+                <input type="text" class="variant-col__label" data-col-id="${c.id}" value="${escapeAttr(c.label)}" placeholder="Cột" />
+                <button type="button" class="variant-col__remove" data-col-id="${c.id}" title="Xoá cột" aria-label="Xoá cột">✕</button>
+              </th>`).join("")}
+            <th><button type="button" class="btn btn-sm" id="variantAddColBtn">➕ Cột</button></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ed.rows.map((r) => `
+            <tr>
+              <th>
+                <input type="text" class="variant-row__label" data-row-id="${r.id}" value="${escapeAttr(r.label)}" placeholder="Hàng" />
+                <button type="button" class="variant-row__remove" data-row-id="${r.id}" title="Xoá hàng" aria-label="Xoá hàng">✕</button>
+              </th>
+              ${ed.cols.map((c) => {
+                const val = (ed.cellPrices[r.id] && ed.cellPrices[r.id][c.id] != null) ? ed.cellPrices[r.id][c.id] : "";
+                return `<td><input type="number" class="variant-cell-price" data-row-id="${r.id}" data-col-id="${c.id}" step="0.01" min="0" value="${val}" /></td>`;
+              }).join("")}
+              <td></td>
+            </tr>`).join("")}
+          <tr><td colspan="${ed.cols.length + 2}"><button type="button" class="btn btn-sm" id="variantAddRowBtn">➕ Hàng</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="variant-apply-all">
+      <input type="number" id="variantTwoApplyPrice" step="0.01" min="0" placeholder="Giá áp dụng cho mọi ô" />
+      <button type="button" class="btn btn-sm btn-primary" id="variantTwoApplyBtn">Áp dụng cho tất cả</button>
+    </div>
+  </div>`;
+}
+
+function renderVariantEditorBody() {
+  const wrap = $("variantEditorWrap");
+  const body = $("variantEditorBody");
+  if (!wrap || !body) return;
+  const ed = state.variantEditor;
+  const show = ed && ed.mode !== "none";
+  wrap.classList.toggle("hidden", !show);
+  if (!show) { body.innerHTML = ""; return; }
+  body.innerHTML = ed.mode === "one" ? renderOneAxisEditorHtml(ed) : renderTwoAxisEditorHtml(ed);
+}
+
+async function removeVariantEntry(ed, entryId) {
+  const idx = ed.entries.findIndex((x) => x.id === entryId);
+  if (idx < 0) return;
+  const en = ed.entries[idx];
+  if (Number.isFinite(Number(en.price)) || (en.label && en.label.trim())) {
+    const ok = await showConfirm("Xoá lựa chọn", `Xoá lựa chọn "${en.label || "(chưa đặt tên)"}"? Giá của lựa chọn này sẽ mất khi bạn lưu món.`, "Xoá");
+    if (!ok) return;
+  }
+  ed.entries.splice(idx, 1);
+  renderVariantEditorBody();
+  updateItemLivePreview();
+}
+
+async function removeVariantRow(ed, rowId) {
+  const idx = ed.rows.findIndex((x) => x.id === rowId);
+  if (idx < 0) return;
+  const r = ed.rows[idx];
+  const hasPrice = ed.cols.some((c) => Number.isFinite(Number(ed.cellPrices[rowId] && ed.cellPrices[rowId][c.id])));
+  if (hasPrice || (r.label && r.label.trim())) {
+    const ok = await showConfirm("Xoá hàng", `Xoá hàng "${r.label || "(chưa đặt tên)"}"? Toàn bộ giá trong hàng này sẽ mất khi bạn lưu món.`, "Xoá");
+    if (!ok) return;
+  }
+  ed.rows.splice(idx, 1);
+  delete ed.cellPrices[rowId];
+  renderVariantEditorBody();
+  updateItemLivePreview();
+}
+
+async function removeVariantCol(ed, colId) {
+  const idx = ed.cols.findIndex((x) => x.id === colId);
+  if (idx < 0) return;
+  const c = ed.cols[idx];
+  const hasPrice = ed.rows.some((r) => Number.isFinite(Number(ed.cellPrices[r.id] && ed.cellPrices[r.id][colId])));
+  if (hasPrice || (c.label && c.label.trim())) {
+    const ok = await showConfirm("Xoá cột", `Xoá cột "${c.label || "(chưa đặt tên)"}"? Toàn bộ giá trong cột này sẽ mất khi bạn lưu món.`, "Xoá");
+    if (!ok) return;
+  }
+  ed.cols.splice(idx, 1);
+  ed.rows.forEach((r) => { if (ed.cellPrices[r.id]) delete ed.cellPrices[r.id][colId]; });
+  renderVariantEditorBody();
+  updateItemLivePreview();
+}
+
+/** Gắn sự kiện MỘT LẦN DUY NHẤT lên #variantEditorBody (container tồn tại suốt vòng đời trang,
+ * chỉ innerHTML của nó đổi theo render) — input/change cập nhật state trực tiếp KHÔNG render lại
+ * toàn bộ (để không mất tiêu điểm/con trỏ đang gõ dở), click cho hành động thêm/xoá/áp dụng mới
+ * render lại (thay đổi cấu trúc bảng). */
+function wireVariantEditorEvents() {
+  const body = $("variantEditorBody");
+  if (!body) return;
+
+  body.addEventListener("input", (e) => {
+    const ed = state.variantEditor;
+    if (!ed) return;
+    const t = e.target;
+    if (t.id === "variantAxis1Name") { ed.axis1Name = t.value; return; }
+    if (t.id === "variantAxis2Name") { ed.axis2Name = t.value; return; }
+    if (t.classList.contains("variant-row__label") && t.dataset.entryId) {
+      const en = ed.entries.find((x) => x.id === t.dataset.entryId);
+      if (en) en.label = t.value;
+    } else if (t.classList.contains("variant-row__price") && t.dataset.entryId) {
+      const en = ed.entries.find((x) => x.id === t.dataset.entryId);
+      if (en) en.price = t.value === "" ? null : parseFloat(t.value);
+    } else if (t.classList.contains("variant-row__label") && t.dataset.rowId) {
+      const r = ed.rows.find((x) => x.id === t.dataset.rowId);
+      if (r) r.label = t.value;
+    } else if (t.classList.contains("variant-col__label") && t.dataset.colId) {
+      const c = ed.cols.find((x) => x.id === t.dataset.colId);
+      if (c) c.label = t.value;
+    } else if (t.classList.contains("variant-cell-price")) {
+      const rid = t.dataset.rowId;
+      const cid = t.dataset.colId;
+      ed.cellPrices[rid] = ed.cellPrices[rid] || {};
+      ed.cellPrices[rid][cid] = t.value === "" ? null : parseFloat(t.value);
+    } else {
+      return;
+    }
+    const summaryEl = $("variantSummaryPrice");
+    if (summaryEl) summaryEl.textContent = variantSummaryPriceText(ed);
+    updateItemLivePreview();
+  });
+
+  body.addEventListener("click", (e) => {
+    const ed = state.variantEditor;
+    if (!ed) return;
+
+    if (e.target.closest("#variantOneAddBtn")) {
+      ed.entries.push({ id: nextVariantId("e"), label: "", price: null });
+      renderVariantEditorBody();
+      return;
+    }
+    const removeEntryBtn = e.target.closest(".variant-row__remove[data-entry-id]");
+    if (removeEntryBtn) { removeVariantEntry(ed, removeEntryBtn.dataset.entryId); return; }
+    if (e.target.closest("#variantOneApplyBtn")) {
+      const val = parseFloat($("variantOneApplyPrice").value);
+      if (!Number.isFinite(val) || val < 0) { toast("Giá không hợp lệ", "err"); return; }
+      ed.entries.forEach((en) => { en.price = val; });
+      renderVariantEditorBody();
+      updateItemLivePreview();
+      toast(`Đã áp dụng ${formatPriceVi(val, "", state.settings.currency)} cho ${ed.entries.length} lựa chọn`);
+      return;
+    }
+
+    if (e.target.closest("#variantAddRowBtn")) {
+      ed.rows.push({ id: nextVariantId("r"), label: "" });
+      renderVariantEditorBody();
+      return;
+    }
+    if (e.target.closest("#variantAddColBtn")) {
+      ed.cols.push({ id: nextVariantId("c"), label: "" });
+      renderVariantEditorBody();
+      return;
+    }
+    const removeRowBtn = e.target.closest(".variant-row__remove[data-row-id]");
+    if (removeRowBtn) { removeVariantRow(ed, removeRowBtn.dataset.rowId); return; }
+    const removeColBtn = e.target.closest(".variant-col__remove[data-col-id]");
+    if (removeColBtn) { removeVariantCol(ed, removeColBtn.dataset.colId); return; }
+    if (e.target.closest("#variantTwoApplyBtn")) {
+      const val = parseFloat($("variantTwoApplyPrice").value);
+      if (!Number.isFinite(val) || val < 0) { toast("Giá không hợp lệ", "err"); return; }
+      ed.rows.forEach((r) => {
+        ed.cols.forEach((c) => {
+          ed.cellPrices[r.id] = ed.cellPrices[r.id] || {};
+          ed.cellPrices[r.id][c.id] = val;
+        });
+      });
+      renderVariantEditorBody();
+      updateItemLivePreview();
+      toast(`Đã áp dụng ${formatPriceVi(val, "", state.settings.currency)} cho toàn bộ ô`);
+    }
+  });
+}
+
 /* ---------- Modal thêm/sửa món ---------- */
 function openItemModal(id) {
   state.editingItemId = id || null;
@@ -987,7 +1475,6 @@ function openItemModal(id) {
   $("itemModalTitle").textContent = isEdit ? "Sửa món" : "Thêm món";
   $("fName").value = item?.name_pl || "";
   $("fDesc").value = item?.desc_pl || "";
-  $("fPrice").value = item?.price ?? "";
   $("fPriceSuffix").value = item?.priceSuffix || "";
   $("fCategory").value = item?.category || "";
   $("fBadge").value = item?.badge || "";
@@ -1001,25 +1488,25 @@ function openItemModal(id) {
   state.uploadedMediaId = item?.mediaId || "";
   state.uploadedMediaDataUrl = item?.mediaId ? (state.media[item.mediaId]?.dataUrl || "") : "";
 
+  const editorState = deriveVariantEditorState(item);
+  state.variantEditor = editorState;
+  state.variantEditorOriginalMode = editorState.mode;
+  $("fPrice").value = editorState.mode === "none" ? (item?.price ?? "") : "";
+  renderVariantModeSeg();
+  renderVariantEditorBody();
+  updateFlatPriceFieldVisibility();
+
   updateImagePickerPreview();
   updateItemLivePreview();
   $("itemModalOverlay").classList.remove("hidden");
   $("fName").focus();
-
-  // Trình sửa biến thể (variants) chưa được xây (việc của lần sau) — báo cho
-  // chủ quán biết ô "Giá" bên dưới chỉ là giá dự phòng, KHÔNG phải giá thật
-  // của từng lựa chọn, để không hiểu nhầm rồi tưởng đã sửa được giá theo size/
-  // vị. Field variants/variantAxes của món này vẫn được giữ nguyên khi lưu
-  // (xem handleItemFormSubmit — trải `...existing` trước).
-  const variantCount = Array.isArray(item && item.variants) ? item.variants.length : 0;
-  if (variantCount > 1) {
-    toast(`Món này có ${variantCount} biến thể (size/vị) — trang quản trị chưa hỗ trợ sửa từng biến thể, "Giá" dưới đây chỉ là giá dự phòng.`);
-  }
 }
 
 function closeItemModal() {
   $("itemModalOverlay").classList.add("hidden");
   state.editingItemId = null;
+  state.variantEditor = { mode: "none" };
+  state.variantEditorOriginalMode = "none";
 }
 
 // Thứ tự ưu tiên hiển thị PHẢI khớp với resolveImage() của data-layer:
@@ -1041,10 +1528,20 @@ function updateImagePickerPreview() {
 
 function updateItemLivePreview() {
   const name = $("fName").value || "Tên món";
-  const desc = $("fDesc").value || "";
-  const price = parseFloat($("fPrice").value) || 0;
   const suffix = $("fPriceSuffix").value || "";
   const badge = $("fBadge").value || "";
+
+  let desc = $("fDesc").value || "";
+  let price;
+  const ed = state.variantEditor;
+  if (ed && ed.mode !== "none") {
+    const built = buildVariantsPayloadFromEditor(ed);
+    const count = built ? built.variants.length : 0;
+    price = built ? built.price : 0;
+    if (count > 0) desc = `${count} biến thể — xem chi tiết ở màn hình thật`;
+  } else {
+    price = parseFloat($("fPrice").value) || 0;
+  }
 
   $("previewName").textContent = name;
   $("previewDesc").textContent = desc;
@@ -1116,7 +1613,20 @@ async function handleItemFormSubmit(e) {
   e.preventDefault();
   const name = $("fName").value.trim();
   if (!name) { toast("Vui lòng nhập tên món", "err"); return; }
-  const price = parseFloat($("fPrice").value);
+
+  const ed = state.variantEditor || { mode: "none" };
+  let variantResult = null;
+  let price;
+  if (ed.mode !== "none") {
+    variantResult = buildVariantsPayloadFromEditor(ed);
+    if (!variantResult || variantResult.variants.length === 0) {
+      toast('Vui lòng nhập ít nhất 1 giá cho biến thể, hoặc chuyển "Số lượng lựa chọn giá" về "Không có".', "err");
+      return;
+    }
+    price = variantResult.price;
+  } else {
+    price = parseFloat($("fPrice").value);
+  }
   if (isNaN(price) || price < 0) { toast("Giá không hợp lệ", "err"); return; }
 
   const isEdit = !!state.editingItemId;
@@ -1125,13 +1635,11 @@ async function handleItemFormSubmit(e) {
     : (crypto.randomUUID ? crypto.randomUUID() : "item_" + Date.now() + "_" + Math.random().toString(36).slice(2));
 
   const maxOrder = state.items.reduce((m, i) => Math.max(m, i.order || 0), 0);
-  // Trải `...existing` TRƯỚC — bảo toàn mọi field mà form này CHƯA BIẾT sửa
-  // (variantAxes/variants/spicy/vege/best — mô hình biến thể mới, trình sửa
-  // riêng cho nó chưa được xây, xem ghi chú đầu file). Không trải sẽ khiến
-  // lưu 1 món có variants qua form này XOÁ SẠCH variants/variantAxes của nó
-  // (saveItem() ghi đè cả document) chỉ vì mở modal "Sửa" rồi bấm Lưu — sự cố
-  // mất dữ liệu âm thầm, không phải lỗi hiển thị. Các field CÓ trong form vẫn
-  // ghi đè bình thường ở dưới, đúng hành vi "sửa" thật.
+  // Trải `...existing` TRƯỚC — bảo toàn mọi field mà form này không có ô riêng
+  // (spicy/vege/best…). variantAxes/variants CÓ ô riêng (trình sửa biến thể ở
+  // trên) nên được ghi đè tường minh bên dưới — KHÔNG dựa vào spread này cho
+  // 2 field đó, để tránh vừa spread giá trị cũ vừa gán giá trị mới chồng lên
+  // nhau gây nhầm lẫn thứ tự.
   const item = {
     ...(existing || {}),
     id,
@@ -1147,6 +1655,21 @@ async function handleItemFormSubmit(e) {
     mediaId: state.uploadedMediaId || "",
     order: existing ? existing.order : maxOrder + 10,
   };
+
+  if (variantResult) {
+    // Đang ở chế độ "Một chiều"/"Hai chiều" -> LUÔN ghi lại variantAxes/variants
+    // từ trình sửa (round-trip đầy đủ: không đổi gì thì viết lại y hệt dữ liệu
+    // cũ; đổi 1 giá thì chỉ giá đó đổi, phần còn lại giữ nguyên).
+    item.variantAxes = variantResult.variantAxes;
+    item.variants = variantResult.variants;
+  } else if (state.variantEditorOriginalMode && state.variantEditorOriginalMode !== "none") {
+    // Chủ quán đã CHỦ ĐỘNG chuyển từ "có biến thể" về "Không có" (đã được hỏi
+    // xác nhận ở handleVariantModeChange) -> xoá thật sự, không chỉ ẩn UI.
+    item.variantAxes = [];
+    item.variants = [];
+  }
+  // Nếu mode "none" ngay từ đầu (chưa từng có variants) -> không đụng tới 2
+  // field này, giữ nguyên hành vi cũ với document cũ chỉ có `price` phẳng.
 
   const saveBtn = $("itemSaveBtn");
   saveBtn.disabled = true;
@@ -1638,55 +2161,56 @@ function scalePreviewFrames() {
 /* =============================================================================
    Gắn sự kiện tĩnh (chạy một lần khi khởi động)
    ========================================================================== */
+/** Đổi 1 ô giá nhập tại chỗ (trong danh sách) thành lệnh lưu — validate + revert khi sai. */
+function commitInlinePrice(input) {
+  const id = input.dataset.id;
+  const val = parseFloat(input.value);
+  if (!Number.isFinite(val) || val < 0) {
+    toast("Giá không hợp lệ", "err");
+    renderItemsTab(); // khôi phục ô về giá trị đã lưu trước đó
+    return;
+  }
+  const it = state.items.find((x) => x.id === id);
+  if (it && Number(it.price) === val) return; // không đổi -> không gọi lưu vô ích
+  saveItemField(id, { price: val }, "Đã lưu giá");
+}
+
 function wireItemsListEvents() {
   const container = $("itemList");
   container.addEventListener("click", (e) => {
     const editBtn = e.target.closest('[data-action="edit"]');
     const dupBtn = e.target.closest('[data-action="dup"]');
     const delBtn = e.target.closest('[data-action="del"]');
+    const upBtn = e.target.closest('[data-action="move-up"]');
+    const downBtn = e.target.closest('[data-action="move-down"]');
+    const visBtn = e.target.closest('[data-action="toggle-visible"]');
     if (editBtn) return openItemModal(editBtn.dataset.id);
     if (dupBtn) return duplicateItem(dupBtn.dataset.id);
     if (delBtn) return deleteItemFlow(delBtn.dataset.id);
+    if (upBtn) return moveItem(upBtn.dataset.id, "up");
+    if (downBtn) return moveItem(downBtn.dataset.id, "down");
+    if (visBtn) {
+      const it = state.items.find((x) => x.id === visBtn.dataset.id);
+      if (!it) return;
+      const nextVisible = it.visible === false; // đang ẩn -> bấm để hiện, và ngược lại
+      return saveItemField(visBtn.dataset.id, { visible: nextVisible }, nextVisible ? "Đã hiện món (đang bán)" : "Đã ẩn món (hết hàng)");
+    }
     const row = e.target.closest(".item-row");
     if (row && !e.target.closest("input, select, button, label")) openItemModal(row.dataset.id);
   });
   container.addEventListener("change", (e) => {
-    const visToggle = e.target.closest(".vis-toggle");
     const lockSelect = e.target.closest(".lock-select");
-    if (visToggle) saveItemField(visToggle.dataset.id, { visible: visToggle.checked }, visToggle.checked ? "Đã hiện món" : "Đã ẩn món");
+    const priceInput = e.target.closest(".price-inline-input");
     if (lockSelect) saveItemField(lockSelect.dataset.id, { screenLock: parseInt(lockSelect.value, 10) || 0 }, "Đã cập nhật màn hình ghim");
+    if (priceInput) commitInlinePrice(priceInput);
   });
-  container.addEventListener("dragstart", (e) => {
-    const row = e.target.closest(".item-row");
-    if (!row || !isDndEnabled()) { e.preventDefault(); return; }
-    dragSrcId = row.dataset.id;
-    row.classList.add("dragging");
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", row.dataset.id);
-  });
-  container.addEventListener("dragend", (e) => {
-    const row = e.target.closest(".item-row");
-    if (row) row.classList.remove("dragging");
-    container.querySelectorAll(".drop-target").forEach((el) => el.classList.remove("drop-target"));
-  });
-  container.addEventListener("dragover", (e) => {
-    if (!isDndEnabled()) return;
-    const row = e.target.closest(".item-row");
-    if (!row) return;
-    e.preventDefault();
-    row.classList.add("drop-target");
-  });
-  container.addEventListener("dragleave", (e) => {
-    const row = e.target.closest(".item-row");
-    if (row) row.classList.remove("drop-target");
-  });
-  container.addEventListener("drop", (e) => {
-    e.preventDefault();
-    const row = e.target.closest(".item-row");
-    if (row) row.classList.remove("drop-target");
-    if (!isDndEnabled() || !row || !dragSrcId || dragSrcId === row.dataset.id) return;
-    reorderItems(dragSrcId, row.dataset.id);
-    dragSrcId = null;
+  // Enter trong ô giá tại chỗ = xong việc, rời khỏi ô để kích hoạt lưu (change) —
+  // không cần bấm "lưu" nào khác, đúng luồng "2-3 chạm" khi đổi giá trên điện thoại.
+  container.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.closest(".price-inline-input")) {
+      e.preventDefault();
+      e.target.blur();
+    }
   });
 }
 
@@ -1757,6 +2281,14 @@ function wireStaticEvents() {
     state.categoryFilter = e.target.value;
     renderItemsTab();
   });
+
+  // Trình sửa biến thể (variants): chuyển chế độ + wiring 1 lần cho bảng/danh sách
+  $("variantModeSeg").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-val]");
+    if (!btn) return;
+    handleVariantModeChange(btn.dataset.val);
+  });
+  wireVariantEditorEvents();
 
   // Ảnh: chọn tệp / dán URL / xoá ảnh đã tải / xem trước trực tiếp
   ["fName", "fDesc", "fPrice", "fPriceSuffix", "fBadge"].forEach((id) => {

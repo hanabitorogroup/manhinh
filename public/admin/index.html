@@ -123,7 +123,7 @@
           <div class="panel-head">
             <div>
               <h2>Danh sách món ăn</h2>
-              <p class="panel-desc">Kéo–thả để đổi thứ tự hiển thị. Bấm vào một món để sửa.</p>
+              <p class="panel-desc">Bấm ▲▼ để đổi thứ tự hiển thị. Bấm vào giá để sửa nhanh. Bấm vào một món để sửa đầy đủ.</p>
             </div>
             <button class="btn btn-primary" id="addItemBtn">➕ Thêm món</button>
           </div>
@@ -137,7 +137,7 @@
             </select>
           </div>
           <p class="filter-hint hidden" id="dndDisabledHint">
-            ℹ️ Xoá tìm kiếm / bộ lọc để sắp xếp lại bằng kéo–thả.
+            ℹ️ Xoá tìm kiếm / bộ lọc để dùng nút ▲▼ sắp xếp lại thứ tự.
           </p>
 
           <div class="item-list-head">
@@ -327,13 +327,27 @@
             <textarea id="fDesc" placeholder="VD: Bulion wieprzowy, jajko, nori…"></textarea>
           </div>
 
-          <div class="field">
+          <div class="field full">
+            <label>Số lượng lựa chọn giá</label>
+            <div class="segmented" id="variantModeSeg">
+              <button type="button" data-val="none">Không có (1 giá)</button>
+              <button type="button" data-val="one">Một chiều (vd: vị)</button>
+              <button type="button" data-val="two">Hai chiều (vd: vị × cỡ)</button>
+            </div>
+            <p class="field-hint">Món có nhiều mức giá khác nhau theo vị/cỡ/topping? Chọn "Một chiều" hoặc "Hai chiều" để nhập từng giá riêng — không thì để "Không có".</p>
+          </div>
+
+          <div class="field" id="flatPriceField">
             <label for="fPrice">Giá *</label>
             <input type="number" id="fPrice" step="0.01" min="0" required placeholder="39.90" />
           </div>
           <div class="field">
             <label for="fPriceSuffix">Hậu tố giá</label>
             <input type="text" id="fPriceSuffix" placeholder="VD: /100g" />
+          </div>
+
+          <div class="field full hidden" id="variantEditorWrap">
+            <div id="variantEditorBody"><!-- JS render: danh sách 1 chiều hoặc bảng 2 chiều --></div>
           </div>
 
           <div class="field">
@@ -376,7 +390,7 @@
               <div class="image-picker__drop" id="imageDropPreview">🍽️</div>
               <div class="image-picker__controls">
                 <input type="file" id="fImageFile" accept="image/*" />
-                <input type="url" id="fImageUrl" placeholder="hoặc dán URL ảnh https://…" />
+                <input type="text" inputmode="url" id="fImageUrl" placeholder="hoặc dán URL ảnh https://… (hoặc /assets/…)" />
                 <p class="image-win-note">
                   Nếu vừa tải ảnh lên vừa dán URL: <b>URL dán sẽ được ưu tiên</b> hiển thị (giống hệt màn hình thật).
                   Muốn dùng ảnh vừa tải lên thì xoá URL.

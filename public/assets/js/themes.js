@@ -9,25 +9,57 @@
 //                       tuỳ biến admin lưu trong Firestore (themes/{themeId})
 //
 // Mỗi theme được chọn màu để: tương phản cao, "ngon mắt" (làm nổi bật đồ ăn),
-// đọc được từ xa vài mét trên màn hình 50". Nền luôn tối/đậm hoặc có lớp thẻ
-// (cardBg) đủ tối để chữ trắng/kem nổi rõ, tránh chói lóa như nền trắng thuần.
+// đọc được từ xa vài mét trên màn hình 50".
+//
+// ĐỔI HƯỚNG PALETTE (port thiết kế đã duyệt, xem scratchpad/revA2/pairings —
+// "pairing 1"): nền SÁNG BÃO HOÀ + MỰC TỐI, không còn nền tối/đậm + chữ sáng
+// như bản cũ. Lý do không chỉ là gu thẩm mỹ — đây là SỬA LỖI CHỨC NĂNG: ảnh
+// món giờ dùng object-fit:contain (xem display.css .card-media img), tức
+// phần thừa quanh ảnh lộ ra CHÍNH MÀU NỀN THẺ (cardBg, giờ là màu ĐẶC, không
+// còn rgba mờ phủ lên ảnh cover kín thẻ như trước). Với 5/6 theme cũ (nền gần
+// đen), 1 đĩa món ăn màu đen/sẫm chụp trên đĩa tối đo được chỉ ~1.01:1 tương
+// phản với chính nền thẻ — đĩa/viền món COI NHƯ BIẾN MẤT, không phải lỗi nhỏ.
+// Nền vàng bão hoà (bản duyệt) đo được 12.07:1 với đĩa gần đen — số đo target
+// cho cả 6 theme ở đây. Bản sắc theo mùa vẫn giữ qua HUE (vàng ấm/xanh lá
+// bạc hà/vàng chanh/vàng nghệ/cam bí ngô/lam ngọc) + accent + loại hạt hiệu
+// ứng — không giữ qua độ tối/sáng của nền như trước (không còn cách nào giữ
+// độ tối MÀ VẪN đảm bảo đĩa tối không biến mất, 2 yêu cầu loại trừ nhau).
+//
+// cardBg giờ là màu ĐẶC (không phải rgba mờ) — đây chính là "nền" mà đĩa món
+// phải nổi lên trên, không phải lớp phủ lên ảnh nữa (xem display.css, phần
+// "Thẻ món"). bg/bgGradient (nền .stage, chỉ lộ ra ở khe hở/lề ngoài lưới)
+// dùng cùng tông màu với cardBg để toàn màn hình nhất quán 1 "ground" duy
+// nhất, có gradient rất nhẹ cùng tông (không phải tối góc như bản cũ) cho đỡ
+// phẳng tuyệt đối.
+//
+// Số đo tương phản CHỮ (textColor vs cardBg) và ĐĨA (cardBg vs #141414, tông
+// đĩa/sản phẩm gần đen điển hình) từng theme — WCAG relative luminance,
+// dùng chung công thức contrastRatio() ở dưới file này:
+//   hanabi     — chữ 12.07:1  đĩa 11.99:1  (chính là số đo bản duyệt gốc)
+//   christmas  — chữ  9.67:1  đĩa 12.04:1
+//   newyear    — chữ 13.65:1  đĩa 13.05:1
+//   easter     — chữ 10.08:1  đĩa 12.78:1
+//   halloween  — chữ  8.18:1  đĩa  7.91:1
+//   summer     — chữ  8.19:1  đĩa 10.28:1
+// Cả 6 theme đều vượt xa cả sàn WCAG AA (4.5:1) LẪN AAA (7:1) cho chữ, và
+// vượt xa mức ~1.01:1 (đĩa biến mất) đo được ở bản cũ cho phần đĩa.
 // =============================================================================
 
 export const THEMES = {
   // ---------------------------------------------------------------------
-  // Mặc định — "Hanabi" (pháo hoa Nhật Bản): đỏ torii + vàng ánh kim trên
-  // nền tím-đen sâu, gợi không khí quán ramen/sushi về đêm.
+  // Mặc định — "Hanabi" (pháo hoa Nhật Bản): nền vàng ấm bão hoà (ĐÚNG màu đã
+  // duyệt/đo trong bản mockup pairing 1), mực nâu-đen, đỏ torii làm accent.
   // ---------------------------------------------------------------------
   hanabi: {
     name_vi: "Mặc định (Hanabi)",
-    bg: "#0d0d17",
-    bgGradient: "linear-gradient(135deg, #1a0f2e 0%, #0d0d17 55%, #1c0a0a 100%)",
-    textColor: "#fff5e6",
-    outlineColor: "#000000",
+    bg: "#ffc93c",
+    bgGradient: "linear-gradient(135deg, #ffd65c 0%, #ffc93c 60%, #f5b62c 100%)",
+    textColor: "#1a1206",
+    outlineColor: "#1a1206",
     outlineWidth: 2,
-    accent: "#ff3b57",
-    priceColor: "#ffd166",
-    cardBg: "rgba(10,10,20,0.55)",
+    accent: "#c0392b",
+    priceColor: "#1a1206",
+    cardBg: "#ffc93c",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
     particles: "fireworks",
@@ -35,18 +67,19 @@ export const THEMES = {
   },
 
   // ---------------------------------------------------------------------
-  // Giáng sinh (Boże Narodzenie): xanh thông đậm + đỏ + vàng, tuyết rơi.
+  // Giáng sinh (Boże Narodzenie): xanh lá bạc hà tươi bão hoà (thay vì xanh
+  // thông tối) + đỏ + vàng, mực xanh thông đậm, tuyết rơi.
   // ---------------------------------------------------------------------
   christmas: {
     name_vi: "Giáng sinh (Boże Narodzenie)",
-    bg: "#0b1d16",
-    bgGradient: "linear-gradient(160deg, #0d2a1c 0%, #0b1d16 55%, #08120e 100%)",
-    textColor: "#ffffff",
-    outlineColor: "#052008",
+    bg: "#8fe3a8",
+    bgGradient: "linear-gradient(160deg, #a8edbb 0%, #8fe3a8 55%, #78d494 100%)",
+    textColor: "#0b2e18",
+    outlineColor: "#0b2e18",
     outlineWidth: 2,
-    accent: "#e63946",
-    priceColor: "#ffd166",
-    cardBg: "rgba(6,20,14,0.55)",
+    accent: "#c8102e",
+    priceColor: "#0b2e18",
+    cardBg: "#8fe3a8",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
     particles: "snow",
@@ -54,19 +87,19 @@ export const THEMES = {
   },
 
   // ---------------------------------------------------------------------
-  // Năm mới (Sylwester / Nowy Rok): xanh navy đen huyền bí + vàng kim,
-  // pháo hoa ăn mừng năm mới.
+  // Năm mới (Sylwester / Nowy Rok): vàng chanh bão hoà (lạnh/sáng hơn vàng ấm
+  // của Hanabi để phân biệt), mực xanh navy đậm, hồng làm accent lễ hội.
   // ---------------------------------------------------------------------
   newyear: {
     name_vi: "Năm mới (Sylwester / Nowy Rok)",
-    bg: "#05050f",
-    bgGradient: "linear-gradient(135deg, #0a0a2a 0%, #05050f 55%, #1a0a1a 100%)",
-    textColor: "#fdf6e3",
-    outlineColor: "#000000",
+    bg: "#ffd60a",
+    bgGradient: "linear-gradient(135deg, #ffe14d 0%, #ffd60a 55%, #f2c400 100%)",
+    textColor: "#0a0a2a",
+    outlineColor: "#0a0a2a",
     outlineWidth: 2,
-    accent: "#ffd700",
-    priceColor: "#ff4d6d",
-    cardBg: "rgba(10,10,25,0.55)",
+    accent: "#ff4d6d",
+    priceColor: "#0a0a2a",
+    cardBg: "#ffd60a",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
     particles: "fireworks",
@@ -74,19 +107,20 @@ export const THEMES = {
   },
 
   // ---------------------------------------------------------------------
-  // Lễ Phục sinh (Wielkanoc): tông pastel xuân, thẻ nền sáng bán trong
-  // suốt để vẫn giữ độ tương phản tốt cho chữ đậm màu.
+  // Lễ Phục sinh (Wielkanoc): vàng trứng gà tươi bão hoà (đậm hơn bản pastel
+  // cũ để đủ tương phản đĩa), mực nâu ấm — giữ nguyên tinh thần bản gốc
+  // (textColor/accent/priceColor cũ), chỉ đổi cardBg từ trắng mờ sang màu đặc.
   // ---------------------------------------------------------------------
   easter: {
     name_vi: "Lễ Phục sinh (Wielkanoc)",
-    bg: "#ffe8ef",
-    bgGradient: "linear-gradient(135deg, #fff1e6 0%, #ffe8ef 45%, #e8f6e3 100%)",
+    bg: "#ffd166",
+    bgGradient: "linear-gradient(135deg, #ffe08c 0%, #ffd166 55%, #ffc247 100%)",
     textColor: "#3a2417",
-    outlineColor: "#ffffff",
+    outlineColor: "#3a2417",
     outlineWidth: 2,
     accent: "#ff6f91",
     priceColor: "#7b4fa0",
-    cardBg: "rgba(255,255,255,0.62)",
+    cardBg: "#ffd166",
     fontHeading: "Poppins",
     fontBody: "Nunito",
     particles: "petals",
@@ -94,18 +128,19 @@ export const THEMES = {
   },
 
   // ---------------------------------------------------------------------
-  // Halloween / Wszystkich Świętych: cam-đen huyền bí, than hồng bay.
+  // Halloween / Wszystkich Świętych: cam bí ngô bão hoà (thay vì cam-đen),
+  // mực nâu gần đen, tím phù thuỷ làm accent, than hồng bay.
   // ---------------------------------------------------------------------
   halloween: {
     name_vi: "Halloween / Wszystkich Świętych",
-    bg: "#0d0704",
-    bgGradient: "linear-gradient(160deg, #1a0d05 0%, #0d0704 55%, #1a0505 100%)",
-    textColor: "#ffe9c7",
-    outlineColor: "#000000",
+    bg: "#ff8c1a",
+    bgGradient: "linear-gradient(160deg, #ffa64d 0%, #ff8c1a 55%, #f07800 100%)",
+    textColor: "#1a0d02",
+    outlineColor: "#1a0d02",
     outlineWidth: 2,
-    accent: "#ff7518",
-    priceColor: "#b6ff3c",
-    cardBg: "rgba(10,5,3,0.6)",
+    accent: "#6a1b9a",
+    priceColor: "#1a0d02",
+    cardBg: "#ff8c1a",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
     particles: "embers",
@@ -113,18 +148,20 @@ export const THEMES = {
   },
 
   // ---------------------------------------------------------------------
-  // Mùa hè (Lato / Grill): xanh biển đậm + cam vàng rực, bong bóng nhẹ.
+  // Mùa hè (Lato / Grill): lam ngọc (turquoise) bão hoà thay cho xanh biển
+  // đậm, mực navy (giữ nguyên tông navy cũ nhưng đổi vai trò sang MỰC thay vì
+  // NỀN), cam vàng rực làm accent/giá, bong bóng nhẹ.
   // ---------------------------------------------------------------------
   summer: {
     name_vi: "Mùa hè (Lato / Grill)",
-    bg: "#012a4a",
-    bgGradient: "linear-gradient(135deg, #013a63 0%, #012a4a 55%, #01111f 100%)",
-    textColor: "#ffffff",
+    bg: "#31d6d6",
+    bgGradient: "linear-gradient(135deg, #5fe3e3 0%, #31d6d6 55%, #20bcbc 100%)",
+    textColor: "#012a4a",
     outlineColor: "#012a4a",
     outlineWidth: 2,
     accent: "#ffb703",
     priceColor: "#fb8500",
-    cardBg: "rgba(1,42,74,0.5)",
+    cardBg: "#31d6d6",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
     particles: "bubbles",
@@ -227,6 +264,24 @@ function pickScrimBase(textColorStr) {
 }
 
 /**
+ * Ghép 1 tên font (admin nhập, có thể đã kèm sẵn dự phòng riêng — vd chuỗi có
+ * dấu phẩy) thành 1 font-family stack CÓ DỰ PHÒNG, không bao giờ để trình
+ * duyệt rơi thẳng về font mặc định của chính nó khi tên font không cài được
+ * (xem ghi chú tại nơi gọi, applyTheme()).
+ * @param {string|undefined} name - theme.fontHeading/fontBody, có thể rỗng
+ * @param {string} defaultName - tên font mặc định nếu `name` rỗng
+ * @param {string} fallback - phần dự phòng nối vào cuối (đã đúng cú pháp CSS)
+ */
+function fontStack(name, defaultName, fallback) {
+  const primary = (typeof name === "string" && name.trim()) || defaultName;
+  // Nếu admin đã tự nhập cả 1 stack đầy đủ (có dấu phẩy) thì tôn trọng nguyên
+  // văn — không tự ý nối thêm, tránh trùng lặp/ghi đè ý định của admin.
+  if (primary.includes(",")) return primary;
+  const quoted = /\s/.test(primary) && !/^['"]/.test(primary) ? `'${primary}'` : primary;
+  return `${quoted}, ${fallback}`;
+}
+
+/**
  * Ghi các CSS custom properties của theme lên phần tử gốc (thường là <html>
  * hoặc <body> của omhN.html / iframe preview trong admin).
  * @param {HTMLElement} rootEl
@@ -255,8 +310,22 @@ export function applyTheme(rootEl, theme) {
   rootEl.style.setProperty("--accent", accent);
   rootEl.style.setProperty("--price", priceColor);
   rootEl.style.setProperty("--card-bg", theme.cardBg || "rgba(0,0,0,.35)");
-  rootEl.style.setProperty("--font-heading", theme.fontHeading || "Bebas Neue");
-  rootEl.style.setProperty("--font-body", theme.fontBody || "Inter");
+  // BUG PHÁT HIỆN LÚC TỰ HOST FONT (kiểm bằng Playwright, xem báo cáo kèm
+  // code review): setProperty() ghi ĐÚNG 1 tên font trần (vd "Bebas Neue"),
+  // GHI ĐÈ luôn chuỗi dự phòng "Bebas Neue, Arial Narrow, sans-serif" đã đặt
+  // sẵn trong khối mặc định #app { --font-heading: ... } ở display.css. Vì
+  // Bebas Neue KHÔNG được tự host (ngoài phạm vi lần port này — chỉ tự host
+  // Oswald 300 + Nunito 800 cho thẻ món, xem --font-name/--font-option) và
+  // "Arial Narrow" không phải tên font generic (không đảm bảo máy nào cũng
+  // có), trình duyệt không khớp được TÊN NÀO trong 1 mục duy nhất này nên rơi
+  // thẳng về font mặc định của chính trình duyệt — trên nhiều Chromium/
+  // WebView đó là 1 font CÓ CHÂN (serif), không phải sans-serif như thiết kế
+  // — đo được thật trên .idle-logo/.menu-header (dùng --font-heading), xem
+  // ảnh chụp kèm báo cáo. Sửa bằng cách LUÔN nối thêm chuỗi dự phòng khi ghi
+  // biến — không tự host thêm font nào cả, chỉ khôi phục đúng hành vi "dự
+  // phòng" mà file này vốn đã tài liệu hoá nhưng applyTheme() làm mất đi.
+  rootEl.style.setProperty("--font-heading", fontStack(theme.fontHeading, "Bebas Neue", "'Arial Narrow', sans-serif"));
+  rootEl.style.setProperty("--font-body", fontStack(theme.fontBody, "Inter", "'Segoe UI', 'Noto Sans', sans-serif"));
 
   // 3 biến SUY RA (không do admin nhập, không nằm trong schema themes/{id})
   // — xem khối toán tương phản WCAG phía trên khối này để hiểu vì sao.

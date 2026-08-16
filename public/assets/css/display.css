@@ -29,14 +29,28 @@
      --accent           màu nhấn (ribbon, viền, hiệu ứng)
      --price            màu nổi bật cho badge giá
      --card-bg           nền thẻ món (thường là rgba mờ)
-     --font-heading     font tiêu đề (tên món, logo)
+     --font-heading     font tiêu đề (.menu-header/.idle-logo — theo theme)
      --font-body         font nội dung (mô tả)
+     --font-name         (CỐ ĐỊNH, không do applyTheme() ghi — xem khối #app)
+                         font tên món .card-name — Oswald 300 tự host, GIỐNG
+                         NHAU ở cả 6 theme vì là 1 phần thiết kế thẻ món đã
+                         duyệt, không phải bản sắc theo mùa. Tách khỏi
+                         --font-heading để đổi font tên món không vô tình đổi
+                         luôn font .menu-header (2 khái niệm khác nhau).
+     --font-option       (CỐ ĐỊNH, như trên) font dòng lựa chọn (.card-option)
+                         + giá (.price-tag) — Nunito 800 tự host.
      --overlay-image    ảnh trang trí phủ nền, có thể "none"
      --scrim-rgb        (SUY RA bởi applyTheme(), không do theme ghi trực
                          tiếp) "r,g,b" gốc màu lớp phủ sau thẻ món — "0,0,0"
                          (đen) nếu textColor của theme sáng, "255,255,255"
-                         (trắng) nếu textColor tối — luôn cùng "cực" với chữ
-                         để chữ luôn có nền đủ tương phản, bất kể ảnh món.
+                         (trắng) nếu textColor tối. GHI CHÚ (thiết kế thẻ món
+                         đã duyệt, xem khối "Thẻ món" bên dưới): thẻ món mới
+                         không còn scrim phủ ảnh nữa (chữ đứng trên nền ĐẶC
+                         var(--card-bg), không phải trên ảnh) nên biến này
+                         HIỆN KHÔNG có rule CSS nào tiêu thụ — vẫn được
+                         applyTheme()/themes.js tính và ghi (không xoá, tránh
+                         phá hợp đồng CSS var đang có), để dành nếu sau này có
+                         chỗ khác cần phủ chữ lên ảnh (vd ribbon/box khác).
      --accent-ink       (SUY RA) màu chữ trên ribbon — đen hoặc trắng, chọn
                          theo tương phản thật với --accent (thay vì giả định
                          --bg luôn tối như trước đây).
@@ -60,6 +74,55 @@
    không ảnh hưởng độ dễ đọc, có ghi chú riêng). Giá trị vw/vh ở giữa clamp()
    giữ nguyên vì bản thân chúng đã co giãn đúng theo viewport rồi.
    ========================================================================== */
+
+/* ---------- Font tự host (self-hosted) --------------------------------------
+   Oswald 300 (tên món) + Nunito 800 (dòng lựa chọn / giá) — cả hai đều SIL Open
+   Font License 1.1, file .woff2 nằm trong public/assets/fonts/, giấy phép đầy
+   đủ đi kèm trong public/assets/fonts/OFL-Oswald.txt / OFL-Nunito.txt như OFL
+   yêu cầu ("Copyright & License notice... must be distributed together").
+   KHÔNG dùng CDN (Google Fonts...) — 4 màn hình signage phải chạy được khi
+   offline/mất mạng, xem docs/ARCHITECTURE.md mục 9. Trước đây themes.js khai
+   báo fontHeading:"Bebas Neue" nhưng display.css không có @font-face nào cả —
+   font luôn âm thầm rơi về Arial Narrow (được khai báo trong stack) mà không
+   ai biết. Ở đây bổ sung 2 font THỰC SỰ cần cho thiết kế thẻ món mới (tên món
+   + dòng lựa chọn/giá) — xem --font-name/--font-option trong khối #app bên
+   dưới. --font-heading (Bebas Neue, do applyTheme() ghi theo theme) vẫn chưa
+   được self-host — nó chỉ còn dùng cho .menu-header/.idle-logo (tắt theo mặc
+   định, xem showHeader), ngoài phạm vi bộ 2 font thiết kế thẻ món lần này.
+   2 file .woff2/family (latin + latin-ext) để phủ đủ dấu tiếng Ba Lan
+   (ą ć ę ł ń ó ś ź ż nằm trong khối Latin Extended-A, subset latin-ext). */
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("../fonts/Oswald-300-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("../fonts/Oswald-300-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../fonts/Nunito-800-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../fonts/Nunito-800-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /* ---------- Reset & nền tổng ---------------------------------------------- */
 *,
@@ -125,6 +188,18 @@ body::-webkit-scrollbar {
   --card-bg: rgba(0, 0, 0, 0.4);
   --font-heading: "Bebas Neue", "Arial Narrow", sans-serif;
   --font-body: "Segoe UI", "Noto Sans", sans-serif;
+  /* --font-name / --font-option: CỐ ĐỊNH cho mọi theme (KHÔNG do applyTheme()
+     ghi) — đây là lỗ hổng kiến trúc đã phát hiện khi tự host font: trước đây
+     --font-heading dùng CHUNG cho cả .card-name (tên món) LẪN .menu-header
+     (tiêu đề "MENU"), nên đổi font tên món cho theme này sẽ vô tình đổi luôn
+     font tiêu đề — 2 khái niệm khác nhau (nhận diện theo mùa của tiêu đề/màn
+     chờ, và kiểu chữ CỐ ĐỊNH của bộ thẻ món đã được duyệt) bị trộn vào 1 biến.
+     Tách hẳn 2 token: --font-heading vẫn do theme quyết định (menu-header,
+     idle-logo — xem bên dưới), còn --font-name/--font-option là 1 phần của
+     THIẾT KẾ THẺ MÓN đã chốt (Oswald 300 / Nunito 800), giống nhau ở cả 6
+     theme mùa, không đổi theo theme. */
+  --font-name: "Oswald", "Arial Narrow", sans-serif;
+  --font-option: "Nunito", Arial, sans-serif;
   --overlay-image: none;
   /* 3 biến suy ra bởi applyTheme() (themes.js) từ textColor/accent/priceColor
      bằng công thức tương phản WCAG — KHÔNG do theme hay admin ghi trực tiếp.
@@ -282,7 +357,17 @@ body::-webkit-scrollbar {
 .menu-grid-layer[data-count="5"] .card:nth-child(n+4)  { grid-column: span 3; grid-row: span 1; }
 .menu-grid-layer[data-count="6"] .card { grid-column: span 2; grid-row: span 1; }
 
-/* ---------- Thẻ món ---------------------------------------------------------- */
+/* ---------- Thẻ món (thiết kế đã duyệt — port từ scratchpad/revA2/pairings,
+   pairing 1 "oswald-nunito") -----------------------------------------------
+   Thay đổi kiến trúc so với bản cũ: KHÔNG còn dải danh mục, KHÔNG còn lớp phủ
+   (scrim) trên ảnh — ảnh giờ chỉ chiếm phần trên thẻ (~70% chiều cao, object-
+   fit:contain thay vì cover phủ kín), phần dưới là 1 dải nền ĐẶC (var(--card-
+   bg), không còn rgba mờ) chứa tên món + giá (cùng 1 hàng) + dòng lựa chọn.
+   Vì chữ giờ luôn đứng trên 1 màu nền ĐẶC (không phải ảnh/gradient), không
+   còn cần -webkit-text-stroke để đọc được — bỏ hẳn viền chữ + scrim ở đây
+   (contrast đến từ chính cặp màu "nền sáng bão hoà / mực tối" của theme, xem
+   themes.js — mọi theme hiện đo được > 8:1, xem báo cáo kèm code review).
+   .placeholder-glyph vẫn dùng --text làm currentColor nên vẫn ăn theo theme. */
 @keyframes cardEnter {
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -292,18 +377,30 @@ body::-webkit-scrollbar {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  display: grid;
+  /* Ảnh chiếm phần fr duy nhất (co giãn theo không gian còn lại — đây là cách
+     "photo ~70% chiều cao thẻ" cash ra thành CSS: dải chữ bên dưới là "auto"
+     (co theo nội dung), phần fr còn lại luôn là phần lớn nhất trong 2 hàng
+     với 1-2 dòng tên/dòng lựa chọn ở mật độ 6-up đã đo). */
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: clamp(0.2rem, 0.45vh, 0.55rem);
   border-radius: clamp(0.625rem, 1vw, 1.25rem);
   background: var(--card-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, .35); /* độ nổi trung tính, không thuộc theme */
+  padding: clamp(0.5rem, 0.9vh, 1.1rem) clamp(0.75rem, 1.15vw, 1.5rem) clamp(0.6rem, 1vh, 1.3rem);
   animation: cardEnter .6s cubic-bezier(.2,.8,.2,1) both;
   animation-delay: calc(var(--layer-delay) + (var(--i, 0) * 60ms));
 }
 
 .card-media {
-  position: absolute;
-  inset: 0;
+  grid-row: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
-  background: var(--card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @keyframes kenBurns {
@@ -311,12 +408,20 @@ body::-webkit-scrollbar {
   to   { transform: scale(1.08); }
 }
 
+/* object-fit:contain (KHÔNG phải cover) — ảnh nằm gọn trong phần trên của
+   thẻ, nền ĐẶC var(--card-bg) của chính thẻ lấp đầy phần thừa quanh ảnh. Đây
+   chính là điều làm cho "đĩa đen vẫn nhìn thấy được" trên nền sáng bão hoà:
+   viền/đế đĩa tối của món ăn luôn tương phản với nền thẻ sáng xung quanh nó
+   thay vì chìm vào 1 nền gần đen như bản thiết kế cũ (xem themes.js — đo
+   được ~1.01:1 ở 5/6 theme cũ, tức đĩa biến mất hoàn toàn). */
 .card-media img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  position: static;
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   animation: kenBurns 12s ease-in-out infinite alternate;
 }
 
@@ -352,86 +457,174 @@ body::-webkit-scrollbar {
   height: 100%;
 }
 
-/* Lớp phủ (scrim) để chữ luôn đọc được trên ảnh — nền TỰ THÍCH NGHI theo
-   textColor của theme (--scrim-rgb, xem themes.js) chứ không cứng màu đen:
-   trước đây scrim luôn đen nên chữ SÁNG (5/6 theme) đọc tốt nhưng chữ TỐI
-   (Easter — textColor #3a2417 thiết kế cho nền trang sáng) gần như biến mất
-   trên chính nền phủ tối này — đây là NGUYÊN NHÂN GỐC của lỗi "mô tả không
-   đọc được ở theme Easter", không phải bản thân màu #3a2417.
-
-   3 điểm dừng đo đạc lại bằng Playwright (đo vị trí thật của .card-name/
-   .card-desc theo % chiều cao .card-body, không đoán): tên món nằm rất gần
-   mép trên của .card-body (~73% chiều cao tính từ đáy) — bản gốc cho điểm
-   dừng 100% = alpha 0 (TRONG SUỐT hoàn toàn), nghĩa là ngay phía sau tên món
-   gần như không còn lớp phủ nào, chỉ còn dựa vào viền chữ (-webkit-text-
-   stroke) để đọc được trên ảnh sáng. Sửa: KHÔNG để điểm dừng trên cùng về 0
-   nữa — giữ 1 "sàn" tối thiểu .44 xuyên suốt .card-body, cộng 2 điểm dừng đầu
-   tăng từ bản gốc (.78→.90, .42→.74), để cả tên món lẫn mô tả luôn có nền đủ
-   tương phản kể cả khi ảnh món ngay dưới chữ rất sáng. Xem audit tương phản
-   đo bằng WCAG kèm số đo trước/sau (báo cáo kèm code review). */
-.card-body {
+/* Nhãn OSTRE / WEGE / BESTSELLER — pill phủ ở góc trên-trái CHÍNH ảnh món (không
+   phải toàn thẻ), neo vào dải trên cùng luôn trống của ảnh cắt nền (đo trên
+   toàn bộ ảnh nguồn: vùng có nội dung luôn bắt đầu sau ít nhất ~7% chiều cao
+   ảnh, xem scratchpad/revA2/build_a2.py). Nền TRẮNG ĐẶC + viền var(--outline)
+   (LUÔN là mực tối ở cả 6 theme mới, xem themes.js) — cố định, KHÔNG lấy màu
+   theo theme — để pill đọc được ổn định trên CẢ nền thẻ sáng bão hoà LẪN một
+   đĩa gần đen phía sau nó, bất kể theme nào đang bật. Trước đây pill
+   BESTSELLER dùng viền màu gold theo --price/--text của bản nền vàng, đo được
+   chỉ 1.04:1 trên chính nền vàng đó — tức viền vô hình ngay trên nền của
+   chính nó. Sửa: dùng viền tối dùng chung cho cả 3 loại pill (như 2 loại kia),
+   giữ bản sắc gold ở chấm tròn bên trong (đã có viền tối riêng của nó). */
+.pill-overlay {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: clamp(0.3rem, 0.7vh, 1rem);
+  left: clamp(0.3rem, 0.7vw, 1rem);
+  right: clamp(0.3rem, 0.7vw, 1rem);
   z-index: 2;
-  padding: clamp(0.75rem, 1.6vw, 1.875rem) clamp(0.75rem, 1.4vw, 1.625rem) clamp(0.625rem, 1.2vw, 1.25rem);
-  background: linear-gradient(to top, rgba(var(--scrim-rgb), .90) 0%, rgba(var(--scrim-rgb), .74) 55%, rgba(var(--scrim-rgb), .44) 100%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: .3em;
 }
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3em;
+  flex: none;
+  background: #ffffff;
+  border: clamp(0.08rem, 0.09vw, 0.13rem) solid var(--outline);
+  border-radius: 999px;
+  padding: .26em .82em .26em .62em;
+  font-family: var(--font-option);
+  font-weight: 800;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  font-size: clamp(0.6rem, 0.5vw + 0.32rem, 1.05rem);
+  line-height: 1.15;
+  white-space: nowrap;
+  color: #1a1a1a;
+  box-shadow: 0 .12em .4em rgba(0, 0, 0, .3);
+}
+.tag-pill .dot {
+  width: .6em;
+  height: .6em;
+  border-radius: 50%;
+  flex: none;
+}
+.tag-pill.tag-spicy { color: #b3122f; }
+.tag-pill.tag-spicy .dot { background: #b3122f; }
+.tag-pill.tag-vege { color: #1f7a34; }
+.tag-pill.tag-vege .dot { background: #1f7a34; }
+.tag-pill.tag-best { color: #171208; }
+.tag-pill.tag-best .dot { background: #ffc400; border: .06em solid #171208; }
 
+/* Dải chữ dưới thẻ: tên món + giá cùng 1 hàng, dòng lựa chọn full-width bên
+   dưới — KHÔNG có dải danh mục, KHÔNG có mô tả nhiều dòng, KHÔNG có logo/
+   thương hiệu (xem ARCHITECTURE.md mục 5, phần "1 thẻ món" cũ đã bỏ). */
+.card-content {
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: .24em;
+  min-width: 0;
+  width: 100%;
+  /* --card-name-fs: SÀN cỡ chữ đo được (đo bằng Playwright ở 3840×2160,
+     xem scratchpad/revA2/pairings/measure_output.json): 3.25rem == 104px ở
+     root font-size 32px (viewport 3840, xem html{font-size:clamp(...)} ở đầu
+     file) == 24.02mm cap-height thật, ĐÚNG con số đã duyệt. Giá trị CỐ ĐỊNH
+     theo rem (không có số hạng vw phụ) để không bao giờ đổi theo mật độ
+     lưới/số món trên trang — đây chính là "sàn" mà brief yêu cầu không được
+     phép hồi quy. Dùng biến thay vì lặp lại số ở price-tag để 2 nơi luôn khớp
+     tỉ lệ theo đúng 1 công thức duy nhất. */
+  --card-name-fs: 3.25rem;
+}
+.row-name-price {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: clamp(0.5rem, 1vw, 1.1rem);
+  width: 100%;
+}
+/* Bậc cứu hộ CUỐI của fitCardPrices() (display.js) — chỉ gắn bằng JS cho
+   ĐÚNG những thẻ đo được thật sự cần (tên dài nhất + giá khoảng rộng nhất
+   CỘNG LẠI vẫn không vừa 1 hàng dù giá đã hạ về bằng cỡ tên + tracking đã
+   xiết), KHÔNG áp dụng mặc định cho mọi thẻ — số đông thẻ (giá 2-3 ký tự)
+   vẫn giữ nguyên khoảng cách rộng rãi mặc định ở trên, không bị hy sinh vì 1
+   trường hợp hiếm. */
+.row-name-price.tight-fit {
+  column-gap: clamp(0.3rem, 0.6vw, 0.6rem);
+}
+.price-tag.tight-fit {
+  padding: 0.22rem 0.5rem;
+}
 .card-name {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  font-family: var(--font-heading);
-  font-weight: 700;
-  font-size: clamp(1.15rem, 1.7vw + .2rem, 2.7rem);
-  line-height: 1.08;
+  font-family: var(--font-name);
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+  line-height: .94;
+  font-size: var(--card-name-fs);
   color: var(--text);
-  -webkit-text-stroke: var(--outline-w) var(--outline);
-  paint-order: stroke fill;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-/* Trước đây KHÔNG có viền/bóng chữ (chỉ color: var(--text)) — đúng là "cardDesc
-   dùng var(--text) không viền" mà lỗi gốc đã chỉ ra. Cùng 1 rủi ro như
-   card-name (đứng trên scrim/ảnh, không phải trên 1 màu nền đặc) nên cần
-   cùng 1 lớp bảo vệ. Dùng -webkit-text-stroke mỏng hơn tên món (chữ nhỏ hơn,
-   viền dày bằng tên món sẽ làm đặc/dính nét) CỘNG text-shadow đổ theo 4 hướng
-   làm lớp đệm mềm thứ 2 — hữu ích khi WebView/engine nào đó không hỗ trợ
-   -webkit-text-stroke tốt bằng Chromium desktop (mục 9(c) ARCHITECTURE.md:
-   WebView Android có thể cũ hơn), để mô tả không phụ thuộc DUY NHẤT vào 1 kỹ
-   thuật viền chữ. */
-.card-desc {
+/* Giá — TO HƠN tên món ~35% (--price-scale, đúng giá trị đã chốt trong bản
+   duyệt), dùng LẠI Nunito 800 (không thêm font thứ 3 chưa được cấp phép) thay
+   vì font "Anton" trong bản mockup ban đầu — 2 font Oswald/Nunito là bộ font
+   DUY NHẤT được duyệt+cấp phép OFL cho lần port này. Hình chip bo tròn đơn
+   giản hoá từ hình "vé" (clip-path) của mockup để chịu được text ĐỘ DÀI THAY
+   ĐỔI mà mockup chưa từng kiểm (khoảng giá "17–23", "od 20" của món có biến
+   thể) mà không bị cắt hình. KHÔNG còn hậu tố tiền tệ mặc định — xem
+   formatPrice()/settings.currency trong display.js (đổi currency:"" để tắt,
+   currency:null/thiếu vẫn mặc định "zł" như cũ, không phá dữ liệu cũ). */
+.price-tag {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--font-option);
+  font-weight: 800;
+  letter-spacing: .01em;
+  font-size: calc(var(--card-name-fs) * 1.35);
+  line-height: 1;
+  /* padding TÍNH BẰNG rem (viewport-scaled), KHÔNG PHẢI em-của-font-size-giá —
+     đây CHÍNH XÁC là cái bẫy mà bản mockup gốc đã gặp và ghi chú lại (xem
+     scratchpad/revA2/build_a2.py, "REV3(A2)"): padding em sẽ PHÌNH TO theo
+     --price-scale (1.35×), ăn mất chiều rộng dành cho tên món. Lần port này
+     LẶP LẠI đúng lỗi đó lúc đầu (padding em cũ ăn mất ~137px mỗi thẻ so với
+     rem, đủ để "Kurczak chrupiący"/"Krewetki chrupiące" — tên dài nhất thực
+     đơn thật — rớt xuống 2 dòng dù giá chỉ 2 chữ số) — đo lại bằng Playwright
+     rồi sửa về rem mới hết wrap, xem báo cáo kèm code review. */
+  padding: 0.3rem 0.85rem;
+  border-radius: 0.35rem;
+  background: var(--price);
+  color: var(--price-ink);
+  white-space: nowrap;
+}
+
+/* Dòng lựa chọn — full-width bên dưới hàng tên/giá. Nội dung do display.js
+   quyết định theo DỮ LIỆU (không hardcode theo category, xem CATEGORY_GLYPH_KEY
+   cho ví dụ ngược lại cần tránh): caption biến thể (vd "5 smaków do wyboru",
+   "3 smaki × 2 rozmiary") nếu món có variants[], ngược lại rơi về mô tả món
+   (desc_pl) như hành vi cũ cho món chưa có biến thể. Nunito 800, cùng sàn cỡ
+   chữ với tên món (đo được ~20.91mm ở 4K — trên sàn 20mm cho khoảng nhìn 4m
+   theo brief). */
+.card-option {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: clamp(.78rem, .7vw + .3rem, 1.2rem);
-  line-height: 1.32;
+  font-family: var(--font-option);
+  font-weight: 800;
+  letter-spacing: .01em;
+  font-size: var(--card-name-fs);
+  line-height: 1.05;
   color: var(--text);
-  opacity: .92;
-  -webkit-text-stroke: calc(var(--outline-w) * .6) var(--outline);
-  paint-order: stroke fill;
-  text-shadow: 0 1px 3px rgba(var(--scrim-rgb), .9), 0 0 6px rgba(var(--scrim-rgb), .7);
+  opacity: .88;
+  width: 100%;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.price-badge {
-  align-self: flex-start;
-  margin-top: .15em;
-  padding: .3em 1em;
-  border-radius: 999px;
-  background: var(--price);
-  color: var(--price-ink);
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: clamp(.85rem, .8vw + .3rem, 1.5rem);
-  white-space: nowrap;
-}
-
-/* Ribbon góc (badge NOWOŚĆ / HIT / PROMOCJA…) */
+/* Ribbon góc (badge NOWOŚĆ / HIT / PROMOCJA…) — vẫn giữ cho nhãn tự do admin
+   nhập (khác với 3 pill OSTRE/WEGE/BESTSELLER cố định ở trên, neo lên ảnh). */
 .ribbon {
   position: absolute;
   top: clamp(0.875rem, 2vw, 1.625rem);

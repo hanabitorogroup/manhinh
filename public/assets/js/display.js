@@ -77,26 +77,37 @@ const CATEGORY_GLYPH_ICONS = {
 
 // Ánh xạ danh mục món (field `category` trong Firestore, xem seed-data.js và
 // ARCHITECTURE.md mục 2) sang icon phía trên. Giữ nguyên các bí danh cũ
-// (donburi/grill/yakitori/dessert/drink/soup/zupa/curry) đồng thời khớp đúng
-// các giá trị category thật admin/seed-data đang dùng (don, przystawki,
-// desery, napoje) — trước đây các giá trị thật này không khớp key nào nên
-// luôn rơi vào glyph mặc định, nay được phân biệt đúng theo danh mục.
+// (donburi/grill/yakitori/dessert/drink/soup/zupa/curry — phòng khi admin tự
+// gõ category cũ hoặc dữ liệu cũ còn sót) ĐỒNG THỜI khớp đúng các giá trị
+// category THẬT mà seed-data.js (thực đơn Oława/King Long) đang dùng: zupy,
+// sajgonki, kurczak-ch, dania, makarony, kidbox, dodatki — trước đây các bí
+// danh cũ (donburi/przystawki/desery/napoje…) không khớp category thật nào
+// của bộ dữ liệu Nhật giả định cũ, nay đổi hẳn sang thực đơn thật nên phải
+// kiểm lại TỪNG giá trị category thật, không được đoán (xem "Known traps" —
+// khớp sai âm thầm rơi về glyph mặc định, không có lỗi nào hiện ra để biết).
 const CATEGORY_GLYPH_KEY = {
   ramen: "bowlSteam",
   soup: "bowlSteam",
   zupa: "bowlSteam",
+  zupy: "bowlSteam", // Zupy (Pho, Tajska, Wonton, Tom Yum) — số nhiều, giá trị thật
   sushi: "sushi",
   sashimi: "sushi",
   donburi: "donburi",
   don: "donburi",
   curry: "donburi",
+  dania: "donburi", // Dania główne (Tofu/Kurczak/Wieprzowina/Wołowina/Krewetki/Kaczka)
   grill: "skewer",
   yakitori: "skewer",
   przystawki: "skewer",
+  sajgonki: "skewer", // Sajgonki (nem rán) — món khai vị
+  "kurczak-ch": "skewer", // Kurczak chrupiący (bestseller, chiên giòn)
   dessert: "dango",
   desery: "dango",
   drink: "drink",
   napoje: "drink",
+  makarony: "bowlSteam", // Makarony i ryż (mì/cơm — tô)
+  kidbox: "plate", // Kid-Box — không có glyph riêng, dùng đĩa mặc định tường minh
+  dodatki: "plate", // Dodatki (phần thêm/gia vị) — như trên
   default: "plate",
 };
 
@@ -401,7 +412,12 @@ export function bootDisplay(screenId) {
         ? s.transition
         : "fade",
       distribution: s.distribution === "manual" ? "manual" : "auto",
-      currency: typeof s.currency === "string" && s.currency ? s.currency : "zł",
+      // BUG CŨ: `typeof s.currency === "string" && s.currency ? ... : "zł"`
+      // coi currency:"" (giá trị HỢP LỆ, nghĩa là "tắt hậu tố tiền tệ" — xem
+      // formatPrice()/currencySuffix() bên dưới) là falsy rồi vẫn ép về "zł",
+      // cùng 1 lỗi với formatPrice() cũ. Chỉ khi field KHÔNG PHẢI string
+      // (thiếu/null/undefined) mới fallback "zł".
+      currency: typeof s.currency === "string" ? s.currency : "zł",
       // Mặc định TẮT (bảng hiệu không cần nhắc lại nó là menu) — chỉ bật khi
       // admin đã lưu showHeader:true rõ ràng. Xem DEFAULT_SETTINGS ở
       // data-layer.js để biết lý do đầy đủ.
@@ -524,25 +540,218 @@ export function bootDisplay(screenId) {
       card.innerHTML = cardMarkup(item);
       container.appendChild(card);
     });
+    fitCardPrices(container);
+  }
+
+  // ---------------------------------------------------------------------
+  // "Không được wrap" cho tên món dài + giá RỘNG (vd khoảng giá "24–31" của
+  // biến thể 2 trục) — display.css đặt --price-tag ở đúng --price-scale=1.35
+  // (giá trị đã đo/duyệt) cho trường hợp phổ biến (giá 2-3 ký tự). Nhưng với
+  // giá NHIỀU KÝ TỰ HƠN (khoảng giá, "od X") cộng tên món dài nhất thực đơn
+  // thật ("Kurczak chrupiący"/"Krewetki chrupiące") trên cùng 1 hàng, chip giá
+  // rộng ra đủ để đẩy tên món xuống 2 dòng — ĐO ĐƯỢC THẬT (không phải giả
+  // định) bằng Playwright khi kiểm bộ dữ liệu thật, xem báo cáo kèm code
+  // review. display.css tự nó (thuần CSS) không có cách "co giãn theo nội
+  // dung" nên xử lý ở đây: sau khi thẻ đã render (1 lần/trang, KHÔNG phải mỗi
+  // khung hình — rẻ, không đụng ngân sách hiệu năng SoC yếu), đo xem
+  // .card-name có bị wrap quá 1 dòng không; nếu có, hạ dần cỡ chữ GIÁ (không
+  // bao giờ hạ cỡ chữ TÊN MÓN — đó là SÀN không được phép hồi quy, xem
+  // --card-name-fs trong display.css) cho tới khi tên món về lại 1 dòng, hoặc
+  // chạm sàn "giá bằng đúng cỡ tên món" (KHÔNG BAO GIỜ để giá NHỎ HƠN tên).
+  const PRICE_SCALE_STEPS = [1.35, 1.2, 1.05, 1]; // 1.35 = giá trị đã duyệt (~35% to hơn); 1 = sàn cuối, giá = tên
+  // Nếu hạ hết PRICE_SCALE_STEPS (giá đã bằng đúng cỡ tên món) mà TÊN MÓN vẫn
+  // wrap — trường hợp cực đoan đo được thật: "Kurczak chrupiący" (tên dài
+  // nhất thực đơn) + giá khoảng "24–31" (biến thể 2 trục) CỘNG LẠI vẫn dài
+  // hơn 1 hàng dù giá đã nhỏ bằng tên — bậc cứu hộ thứ 2 là nới lỏng
+  // letter-spacing của CHÍNH TÊN MÓN dần về 0 rồi âm nhẹ. Đây KHÔNG PHẢI hạ
+  // sàn cỡ chữ (cap-height/mm đo được không đổi — letter-spacing không ảnh
+  // hưởng cap-height) nên không vi phạm yêu cầu "không được hồi quy sàn chữ";
+  // dùng cho chính trường hợp mà bản mockup gốc cũng đã thử nghiệm tương tự
+  // (xem scratchpad/revA2/pairings/crowding_test.py — 4 mức letter-spacing
+  // cho đúng chữ "Krewetki chrupiące" ở đúng cỡ chữ production).
+  const NAME_TRACKING_STEPS = [0.01, 0, -0.01, -0.02, -0.03]; // em — 0.01 = giá trị đã duyệt
+  function fitCardPrices(container) {
+    const cards = container.querySelectorAll(".card");
+    cards.forEach((card) => {
+      const nameEl = card.querySelector(".card-name");
+      const priceEl = card.querySelector(".price-tag");
+      const rowEl = card.querySelector(".row-name-price");
+      if (!nameEl || !priceEl) return;
+      // Chiều cao 1 dòng "danh nghĩa" của tên món — LẤY TỪ line-height đã
+      // tính toán sẵn (getComputedStyle trả về px cụ thể cho line-height:.94
+      // unitless), KHÔNG đo getBoundingClientRect() ở đây: nếu tên món đã
+      // đang wrap 2 dòng (trường hợp ta cần phát hiện), rect thật sẽ CAO GẤP
+      // ĐÔI — dùng nó làm "mốc 1 dòng" sẽ tự đánh lừa chính nó ngay từ đầu.
+      priceEl.style.fontSize = "";
+      nameEl.style.letterSpacing = "";
+      priceEl.classList.remove("tight-fit");
+      if (rowEl) rowEl.classList.remove("tight-fit");
+      const singleLine = parseFloat(getComputedStyle(nameEl).lineHeight) || nameEl.getBoundingClientRect().height;
+      const fitsOneLine = () => nameEl.getBoundingClientRect().height <= singleLine * 1.35;
+      // >1.35x sàn 1 dòng -> coi là đã tràn xuống dòng 2 (chừa biên cho dấu
+      // tiếng Ba Lan có phần đuôi/mũ cao hơn chữ thường 1 chút).
+      for (const scale of PRICE_SCALE_STEPS) {
+        priceEl.style.fontSize = `calc(var(--card-name-fs) * ${scale})`;
+        if (fitsOneLine()) return;
+      }
+      for (const tracking of NAME_TRACKING_STEPS) {
+        nameEl.style.letterSpacing = `${tracking}em`;
+        if (fitsOneLine()) return;
+      }
+      // Bậc cứu hộ CUỐI — đo được thật xảy ra với đúng "Kurczak chrupiący"
+      // (tên dài nhất thực đơn) + giá khoảng "XX–XX" (biến thể 2 trục) ở mật
+      // độ 6-up: dù giá đã nhỏ bằng tên VÀ tracking đã xiết hết mức vẫn thiếu
+      // vài chục px. Xiết thêm khoảng cách tên/giá + đệm quanh chip giá (CHỈ
+      // cho đúng thẻ này — class .tight-fit, xem display.css — số đông thẻ
+      // giá ngắn không bị ảnh hưởng, vẫn giữ khoảng cách rộng rãi mặc định).
+      priceEl.classList.add("tight-fit");
+      if (rowEl) rowEl.classList.add("tight-fit");
+      if (fitsOneLine()) return;
+      // Cả 3 bậc cứu hộ đều không đủ (chưa gặp trong thực đơn thật) — chấp
+      // nhận wrap 2 dòng, KHÔNG cắt/không tràn (overflow-wrap/word-break vẫn
+      // giữ nguyên) — suy biến an toàn còn hơn phá layout.
+    });
   }
 
   function cardMarkup(item) {
     const name = escapeHtml(item.name_pl || "");
-    const desc = escapeHtml(item.desc_pl || "");
-    const priceText = formatPrice(item.price, item.priceSuffix, state.settings ? state.settings.currency : "zł");
+    const currency = state.settings ? state.settings.currency : undefined;
+    const priceInfo = priceAndCaptionFor(item, currency);
+
+    // 3 pill cố định (OSTRE/WEGE/BESTSELLER) — DỮ LIỆU (item.spicy/vege/best),
+    // không phải category, quyết định pill nào hiện. Khác với `badge` (ribbon
+    // tự do góc phải, xem bên dưới) — 2 hệ thống nhãn độc lập, không xung đột
+    // vị trí (pill neo ảnh góc trái, ribbon neo GÓC PHẢI toàn thẻ).
+    const pills = [];
+    if (item.spicy) pills.push('<span class="tag-pill tag-spicy"><span class="dot"></span>Ostre</span>');
+    if (item.vege) pills.push('<span class="tag-pill tag-vege"><span class="dot"></span>Wege</span>');
+    if (item.best) pills.push('<span class="tag-pill tag-best"><span class="dot"></span>Bestseller</span>');
+    const pillHtml = pills.length ? `<div class="pill-overlay">${pills.join("")}</div>` : "";
+
     const badgeHtml = item.badge
       ? `<span class="ribbon">${escapeHtml(item.badge)}</span>`
       : "";
     const imgSrc = resolveImage(item);
     const mediaHtml = imgSrc
-      ? `<div class="card-media"><img src="${escapeAttr(imgSrc)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async"></div>`
-      : `<div class="card-media placeholder"><span class="placeholder-glyph" aria-hidden="true">${glyphFor(item.category)}</span></div>`;
+      ? `<div class="card-media">${pillHtml}<img src="${escapeAttr(imgSrc)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async"></div>`
+      : `<div class="card-media placeholder">${pillHtml}<span class="placeholder-glyph" aria-hidden="true">${glyphFor(item.category)}</span></div>`;
 
-    return `${mediaHtml}${badgeHtml}<div class="card-body">
-      <h2 class="card-name">${name}</h2>
-      ${desc ? `<p class="card-desc">${desc}</p>` : ""}
-      <div class="price-badge">${priceText}</div>
+    const captionHtml = priceInfo.caption
+      ? `<p class="card-option">${escapeHtml(priceInfo.caption)}</p>`
+      : "";
+
+    return `${mediaHtml}${badgeHtml}<div class="card-content">
+      <div class="row-name-price">
+        <h2 class="card-name">${name}</h2>
+        <span class="price-tag">${priceInfo.priceText}</span>
+      </div>
+      ${captionHtml}
     </div>`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Biến thể món (variants) — mô hình dữ liệu mới, xem ARCHITECTURE.md (chưa
+  // cập nhật field mới ở đây — variantAxes/variants/spicy/vege/best là phần
+  // mở rộng của tài liệu đang chờ được người phụ trách chốt vào hợp đồng):
+  //   variantAxes: string[]                 0, 1, hoặc 2 tên trục (vd
+  //                                          ["Białko","Wielkość"])
+  //   variants: [{ axis: string[], price }] mỗi lựa chọn 1 giá
+  // display.js CHỌN chiến lược hiển thị bằng cách XEM DỮ LIỆU (số trục, giá có
+  // bằng nhau không) — KHÔNG hardcode theo item.category, đúng yêu cầu kiến
+  // trúc: món mới thêm ở category bất kỳ vẫn tự động render đúng miễn có đúng
+  // shape variants/variantAxes.
+  //   - không có variants (hoặc chỉ 1 lựa chọn) -> giá đơn (đường cũ, không
+  //     đổi — không cần migrate document cũ chỉ có field `price`)
+  //   - 2 trục -> khoảng giá ("17–23") + caption "N smaki × M rozmiary"
+  //   - 1 trục, giá bằng nhau hết -> giá đơn + caption "N smaków do wyboru"
+  //   - 1 trục, giá khác nhau -> "od X" + caption như trên
+  // Khi KHÔNG có caption biến thể (giá đơn, không trục), dòng lựa chọn rơi về
+  // mô tả món (desc_pl) như hành vi cũ, để không mất nội dung admin đã nhập
+  // cho món chưa có biến thể.
+  // ---------------------------------------------------------------------
+
+  /** Số nhiều tiếng Ba Lan theo quy tắc đếm chuẩn: 1 -> forms[0], 2-4 (trừ
+   * 12-14) -> forms[1], còn lại (5+, và 12-14) -> forms[2]. */
+  function pluralPl(n, forms) {
+    const n10 = n % 10;
+    const n100 = n % 100;
+    if (n === 1) return forms[0];
+    if (n10 >= 2 && n10 <= 4 && !(n100 >= 12 && n100 <= 14)) return forms[1];
+    return forms[2];
+  }
+
+  // Từ mô tả trục PHỤ (trục thứ 2 trong biến thể 2 trục, hoặc trục DUY NHẤT
+  // trong biến thể 1 trục) — tra theo CHÍNH TÊN TRỤC trong dữ liệu (variantAxes),
+  // không phải theo category, nên món mới ở category bất kỳ tự động đúng chữ
+  // miễn variantAxes đặt tên đúng quy ước. "smak" (hương vị) là mặc định an
+  // toàn khi không khớp tên nào — đúng với đa số biến thể thực đơn thật
+  // (nước sốt/hương vị), xem seed-data.js.
+  const AXIS_WORD_FORMS = {
+    "Wielkość": ["rozmiar", "rozmiary", "rozmiarów"],
+    "Ilość": ["porcja", "porcje", "porcji"],
+    "Dodatek": ["dodatek", "dodatki", "dodatków"],
+    default: ["smak", "smaki", "smaków"],
+  };
+  const AXIS1_WORD_FORMS = ["smak", "smaki", "smaków"]; // trục thứ 1 trong biến thể 2 trục — LUÔN "smak", xem ghi chú captionForVariants()
+  const AXIS2_WORD_FORMS = ["rozmiar", "rozmiary", "rozmiarów"]; // trục thứ 2 trong biến thể 2 trục — LUÔN "rozmiar"
+
+  function wordFormsForAxis(axisName) {
+    return AXIS_WORD_FORMS[axisName] || AXIS_WORD_FORMS.default;
+  }
+
+  function distinctCount(values) {
+    return new Set(values.map((v) => String(v == null ? "" : v))).size;
+  }
+
+  /**
+   * Tính { priceText, caption } cho 1 món theo đúng 4 chiến lược ở trên.
+   * @param {object} item
+   * @param {string|undefined} currency - state.settings.currency
+   */
+  function priceAndCaptionFor(item, currency) {
+    const rawVariants = Array.isArray(item.variants) ? item.variants : [];
+    const variants = rawVariants.filter((v) => v && Number.isFinite(Number(v.price)));
+    const axes = Array.isArray(item.variantAxes) ? item.variantAxes : [];
+
+    // Không có biến thể (hoặc chỉ 1 lựa chọn duy nhất -> không thực sự là 1
+    // "lựa chọn") -> đường cũ, không đổi hành vi với document cũ chỉ có field
+    // `price` phẳng.
+    if (variants.length <= 1) {
+      const price = variants.length === 1 ? variants[0].price : item.price;
+      return {
+        // formatPrice() đã tự escape phần văn bản tự do (currency/suffix) —
+        // KHÔNG escape thêm lần nữa ở đây (double-escape sẽ làm hỏng "&" nếu
+        // admin từng nhập currency/suffix chứa ký tự đó).
+        priceText: formatPrice(price, item.priceSuffix, currency),
+        caption: item.desc_pl || "",
+      };
+    }
+
+    const prices = variants.map((v) => Number(v.price));
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const suffix = item.priceSuffix;
+
+    if (axes.length >= 2) {
+      const n1 = distinctCount(variants.map((v) => (Array.isArray(v.axis) ? v.axis[0] : "")));
+      const n2 = distinctCount(variants.map((v) => (Array.isArray(v.axis) ? v.axis[1] : "")));
+      const priceText = min === max
+        ? formatPrice(min, suffix, currency)
+        : formatPriceRange(min, max, suffix, currency);
+      const caption = `${n1} ${pluralPl(n1, AXIS1_WORD_FORMS)} × ${n2} ${pluralPl(n2, AXIS2_WORD_FORMS)}`;
+      return { priceText, caption };
+    }
+
+    // 1 trục (hoặc variantAxes thiếu/rỗng nhưng vẫn có >=2 variants — coi như
+    // 1 trục ẩn danh, dùng chữ mặc định "smak").
+    const axisName = axes.length === 1 ? axes[0] : undefined;
+    const forms = wordFormsForAxis(axisName);
+    const n = variants.length;
+    const caption = `${n} ${pluralPl(n, forms)} do wyboru`;
+    const priceText = min === max
+      ? formatPrice(min, suffix, currency)
+      : `od ${formatPrice(min, suffix, currency)}`;
+    return { priceText, caption };
   }
 
   function resolveImage(item) {
@@ -567,14 +776,46 @@ export function bootDisplay(screenId) {
     return `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
   }
 
+  // Số nguyên -> KHÔNG ép 2 chữ số thập phân (28, không phải 28,00) — đúng
+  // hình ảnh giá đã đo/duyệt (xem scratchpad/revA2/pairings/measure_output.json,
+  // mọi giá trong thực đơn thật đều hiện dạng "28"/"38" không ",00"). Có phần
+  // thập phân (vd 4.5 -> "4,50") -> vẫn ép đủ 2 chữ số kiểu tiền Ba Lan (dấu
+  // phẩy thập phân — xem toLocaleString("pl-PL")), không rút gọn "4,5".
+  function formatNumberPl(num) {
+    if (!Number.isFinite(num)) return "—";
+    return Number.isInteger(num)
+      ? num.toLocaleString("pl-PL")
+      : num.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  /**
+   * Hậu tố tiền tệ (vd " zł") — hoặc CHUỖI RỖNG nếu currency:"" (cách chính
+   * thức để TẮT hậu tố tiền tệ, xem ghi chú formatPrice() bên dưới).
+   */
+  function currencySuffix(currency) {
+    // BUG CŨ: `currency || "zł"` coi currency:"" (chuỗi rỗng, giá trị HỢP LỆ
+    // — không phải "thiếu") là falsy rồi vẫn ép về "zł", nên trước đây KHÔNG
+    // CÓ CÁCH NÀO tắt hậu tố tiền tệ qua settings.currency. Chỉ null/undefined
+    // (field thật sự chưa từng tồn tại trong document) mới nên fallback "zł"
+    // — tương thích ngược 100% với document cũ không có field currency. Thiết
+    // kế đã duyệt (scratchpad/revA2/pairings, pairing 1) không hiện hậu tố
+    // tiền tệ trên thẻ món -> seed-data.js đặt settings.currency:"".
+    const cur = currency != null ? currency : "zł";
+    return cur ? ` ${escapeHtml(cur)}` : "";
+  }
+
   function formatPrice(price, suffix, currency) {
-    const num = Number(price);
-    const formatted = Number.isFinite(num)
-      ? num.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "—";
-    const cur = currency || "zł";
+    const formatted = formatNumberPl(Number(price));
     const suf = suffix ? ` ${escapeHtml(String(suffix))}` : "";
-    return `${formatted} ${escapeHtml(cur)}${suf}`;
+    return `${formatted}${currencySuffix(currency)}${suf}`;
+  }
+
+  /** Khoảng giá cho biến thể 2 trục, vd "17–23 zł" — dùng chung logic tiền tệ/
+   * hậu tố với formatPrice() (chỉ hiện 1 lần ở cuối, không lặp lại 2 lần). */
+  function formatPriceRange(min, max, suffix, currency) {
+    const formatted = `${formatNumberPl(min)}–${formatNumberPl(max)}`;
+    const suf = suffix ? ` ${escapeHtml(String(suffix))}` : "";
+    return `${formatted}${currencySuffix(currency)}${suf}`;
   }
 
   function escapeHtml(str) {

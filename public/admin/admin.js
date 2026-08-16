@@ -163,9 +163,18 @@ function relativeTimeVi(ms) {
 }
 
 function formatPriceVi(price, suffix, currency) {
-  const n = Number(price) || 0;
-  const s = n.toFixed(2).replace(".", ",");
-  return `${s} ${currency || "zł"}${suffix ? " " + suffix : ""}`;
+  const n = Number(price);
+  const s = Number.isFinite(n)
+    ? (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(".", ","))
+    : "—";
+  // BUG CŨ: `currency || "zł"` coi currency:"" (giá trị HỢP LỆ — nghĩa là tắt
+  // hậu tố tiền tệ, xem display.js formatPrice()/currencySuffix()) là thiếu
+  // rồi ép về "zł", cùng lỗi với display.js — sửa đồng bộ để bản xem trước
+  // trong trang quản trị khớp với màn hình thật. Chỉ null/undefined mới
+  // fallback "zł".
+  const cur = currency != null ? currency : "zł";
+  const curPart = cur ? ` ${cur}` : "";
+  return `${s}${curPart}${suffix ? " " + suffix : ""}`;
 }
 
 function setIfNotFocused(el, val) {
@@ -782,8 +791,30 @@ function itemThumbHtml(item) {
   return `<div class="item-thumb placeholder">🍽️</div>`;
 }
 
+// Chưa xây trình sửa biến thể (variants) trong trang quản trị — đó là việc
+// của lần sau (xem ghi chú đầu file/README task). Ở đây CHỈ đảm bảo không sập
+// và không hiện số gây hiểu lầm: món có variants[] (>=2 lựa chọn thật) không
+// có field `price` phẳng — `Number(undefined)||0` cũ sẽ hiện "0,00 zł" trông
+// như món miễn phí, rất dễ gây hiểu lầm cho chủ quán. Hiện số lượng lựa chọn
+// + khoảng giá thay vào đó (đọc-only, không có UI sửa).
+function priceColumnText(item) {
+  const variants = Array.isArray(item.variants)
+    ? item.variants.filter((v) => v && Number.isFinite(Number(v.price)))
+    : [];
+  if (variants.length <= 1 || Number.isFinite(Number(item.price))) {
+    return formatPriceVi(item.price, item.priceSuffix, state.settings.currency);
+  }
+  const prices = variants.map((v) => Number(v.price));
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = min === max
+    ? formatPriceVi(min, item.priceSuffix, state.settings.currency)
+    : `${formatPriceVi(min, "", "")}–${formatPriceVi(max, item.priceSuffix, state.settings.currency)}`;
+  return `${variants.length} biến thể (${range})`;
+}
+
 function itemRowHtml(item) {
-  const priceStr = formatPriceVi(item.price, item.priceSuffix, state.settings.currency);
+  const priceStr = priceColumnText(item);
   const lock = Number(item.screenLock) || 0;
   return `
   <div class="item-row${item.visible === false ? " hidden-item" : ""}" draggable="true" data-id="${escapeAttr(item.id)}">
@@ -936,6 +967,16 @@ function openItemModal(id) {
   updateItemLivePreview();
   $("itemModalOverlay").classList.remove("hidden");
   $("fName").focus();
+
+  // Trình sửa biến thể (variants) chưa được xây (việc của lần sau) — báo cho
+  // chủ quán biết ô "Giá" bên dưới chỉ là giá dự phòng, KHÔNG phải giá thật
+  // của từng lựa chọn, để không hiểu nhầm rồi tưởng đã sửa được giá theo size/
+  // vị. Field variants/variantAxes của món này vẫn được giữ nguyên khi lưu
+  // (xem handleItemFormSubmit — trải `...existing` trước).
+  const variantCount = Array.isArray(item && item.variants) ? item.variants.length : 0;
+  if (variantCount > 1) {
+    toast(`Món này có ${variantCount} biến thể (size/vị) — trang quản trị chưa hỗ trợ sửa từng biến thể, "Giá" dưới đây chỉ là giá dự phòng.`);
+  }
 }
 
 function closeItemModal() {
@@ -1046,7 +1087,15 @@ async function handleItemFormSubmit(e) {
     : (crypto.randomUUID ? crypto.randomUUID() : "item_" + Date.now() + "_" + Math.random().toString(36).slice(2));
 
   const maxOrder = state.items.reduce((m, i) => Math.max(m, i.order || 0), 0);
+  // Trải `...existing` TRƯỚC — bảo toàn mọi field mà form này CHƯA BIẾT sửa
+  // (variantAxes/variants/spicy/vege/best — mô hình biến thể mới, trình sửa
+  // riêng cho nó chưa được xây, xem ghi chú đầu file). Không trải sẽ khiến
+  // lưu 1 món có variants qua form này XOÁ SẠCH variants/variantAxes của nó
+  // (saveItem() ghi đè cả document) chỉ vì mở modal "Sửa" rồi bấm Lưu — sự cố
+  // mất dữ liệu âm thầm, không phải lỗi hiển thị. Các field CÓ trong form vẫn
+  // ghi đè bình thường ở dưới, đúng hành vi "sửa" thật.
   const item = {
+    ...(existing || {}),
     id,
     name_pl: name,
     desc_pl: $("fDesc").value.trim(),
@@ -1103,7 +1152,7 @@ function renderLayoutControlsFromSettings() {
   $("showHeaderToggle").checked = state.settings.showHeader === true;
   setIfNotFocused($("headerTextInput"), state.settings.headerText_pl || "");
   $("headerTextInput").disabled = state.settings.showHeader !== true;
-  setIfNotFocused($("currencyInput"), state.settings.currency || "zł");
+  setIfNotFocused($("currencyInput"), state.settings.currency != null ? state.settings.currency : "zł");
   const reloadHour = Number.isFinite(state.settings.reloadHour) ? state.settings.reloadHour : 4;
   setIfNotFocused($("reloadHourSlider"), reloadHour);
   $("reloadHourVal").textContent = formatHour(reloadHour);

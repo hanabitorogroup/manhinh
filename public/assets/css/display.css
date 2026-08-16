@@ -752,7 +752,16 @@ body::-webkit-scrollbar {
    quan tâm nội dung bên trong là gì). */
 .menu-grid-layer.featured {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  /* 1.3fr:1fr (~56.5%/43.5%) — nới rộng hơn bản trước (1.15fr, ~53.5%/46.5%)
+     để ảnh món lớn hơn nữa (yêu cầu "photo is enormous, roughly half the
+     panel, first thing you see"). Đo được bằng Playwright (script kiểm tra
+     kèm code review): ảnh THẬT (contain-fit, tỉ lệ nguồn ~4:3 landscape
+     trong khung gần vuông) không thể lấp hết chiều cao khung dù rộng thêm
+     bao nhiêu mà không cắt xén nội dung món — cột rộng hơn vẫn tăng được
+     kích thước hiển thị thật của ảnh (scale theo chiều rộng), phần thư viện
+     "calm" còn lại xử lý ở khối .feature-body bên dưới (nội dung cao hơn hẳn
+     bản trước, không còn dải trống lớn một mình). */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   grid-template-rows: 1fr;
   column-gap: clamp(1.5rem, 3vw, 4rem);
   align-items: stretch;
@@ -808,7 +817,14 @@ body::-webkit-scrollbar {
 .feature-media.placeholder::before {
   content: "";
   position: absolute;
-  width: 55%;
+  /* 55% -> 72%: đo được (script kiểm kèm code review) món KHÔNG có ảnh — quá
+     bán số món thật, xem seed-data.js — để lại phần lớn nhất trong "largest
+     empty contiguous region" đo bằng Playwright của TOÀN panel, đúng lỗi chủ
+     quán chỉ ra ("đừng để phí cm nào"). Vòng tròn lớn hơn hẳn lấp gần trọn
+     chiều rộng cột ảnh (72% của cạnh NGẮN hơn giữa width/height cột, vẫn
+     luôn là hình tròn nhờ aspect-ratio 1/1), khớp đúng vai trò "phần lớn
+     panel" mà ảnh thật đảm nhiệm ở món có ảnh. */
+  width: 72%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   border: clamp(.15rem, .35vw, .45rem) solid var(--text);
@@ -816,7 +832,7 @@ body::-webkit-scrollbar {
 }
 .feature-media.placeholder .placeholder-glyph {
   position: relative;
-  width: 32%;
+  width: 42%;
   opacity: .55;
 }
 
@@ -824,7 +840,13 @@ body::-webkit-scrollbar {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: clamp(0.9rem, 1.8vh, 2.2rem);
+  /* 0.9rem/2.2rem -> 1.3rem/3.4rem: đo được (script kiểm kèm code review)
+     dải trống co giãn theo justify-content:center để lại đúng bằng phần
+     "thiếu" của tổng chiều cao nội dung so với chiều cao cột — nới gap giữa
+     tên/mô tả/dải giá là cách trực tiếp nhất tăng tổng chiều cao nội dung mà
+     KHÔNG phải giả/độn thêm phần tử, đúng yêu cầu "calm around elements
+     nhưng không còn large dead region". */
+  gap: clamp(1.3rem, 3vh, 3.4rem);
   min-width: 0;
 }
 
@@ -858,7 +880,12 @@ body::-webkit-scrollbar {
   font-family: var(--font-option);
   font-weight: 800;
   letter-spacing: .01em;
-  font-size: clamp(1.3rem, .9vw + 1rem, 2.4rem);
+  /* 1.3rem/2.4rem -> 1.7rem/2.9rem: đo được cap-height cũ (~14mm ở 4K) dưới
+     sàn ~20mm/4m mà brief yêu cầu cho tên/mô tả/giá — nâng lên gần sàn hơn
+     (vẫn nhỏ hơn tên món có chủ đích, mô tả vẫn là "short description" phụ,
+     không cần bằng đúng sàn 20mm như tên món/giá — xem báo cáo đo kèm code
+     review). */
+  font-size: clamp(1.7rem, 1.1vw + 1.3rem, 2.9rem);
   line-height: 1.3;
   color: var(--text);
   opacity: .82;
@@ -880,7 +907,11 @@ body::-webkit-scrollbar {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: clamp(0.5rem, 1vh, 1rem);
+  /* 0.5rem/1rem -> 0.9rem/1.8rem: cùng lý do nới .feature-body gap phía trên
+     — hàng giá là phần tử LẶP LẠI nhiều lần nhất trên trang (tới 5-6 vé), nới
+     khoảng cách giữa chúng đóng góp trực tiếp nhất vào việc lấp đầy chiều cao
+     cột chữ. */
+  gap: clamp(0.9rem, 2vh, 1.8rem);
 }
 /* "Flag/arrow" — hình vé gốc của bản mockup đầu tiên (clip-path), ĐƯA TRỞ
    LẠI riêng cho trang này (thẻ lưới 6-up vẫn giữ chip bo tròn đơn giản hoá,
@@ -909,21 +940,34 @@ body::-webkit-scrollbar {
   justify-content: space-between;
   gap: 1.4em;
   background: var(--outline);
-  padding: .5em 1.3em .5em calc(5% + 1.2em);
+  /* font-size RIÊNG cho chính .flag-tag (trước đây không đặt, ăn theo cỡ chữ
+     gốc html{font-size} ~1rem — khiến padding em dưới đây RẤT MỎNG, không
+     liên quan gì tới cỡ chữ giá/nhãn to hơn hẳn bên trong nó). Đặt 1 cỡ nền
+     rõ ràng cho "vé" để padding em phồng lên đúng tỉ lệ, "vé" trông chắc/dày
+     như bản tham chiếu ("MAMA'S WOK") thay vì dải mỏng — đồng thời góp thêm
+     chiều cao cho .feature-prices, xem ghi chú ở khối đó. */
+  font-size: clamp(1.4rem, .7vw + 1rem, 2.1rem);
+  padding: .62em 1.4em .62em calc(5% + 1.3em);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 5% 50%);
   font-family: var(--font-option);
   font-weight: 800;
   line-height: 1;
 }
 .flag-label {
-  font-size: clamp(0.8rem, .35vw + .5rem, 1.15rem);
+  /* 0.8-1.15rem -> 1.3-1.9rem: đo được cap-height cũ (~6.3mm ở 4K) gần như
+     không đọc được ở khoảng nhìn 4m — nâng lên rõ rệt (~1.6×), vẫn cố ý nhỏ
+     hơn hẳn .flag-price (nhãn phụ, không phải thông tin chính). */
+  font-size: clamp(1.3rem, .55vw + .85rem, 1.9rem);
   text-transform: uppercase;
   letter-spacing: .03em;
   color: var(--outline-ink);
   opacity: .82;
 }
 .flag-price {
-  font-size: clamp(1.35rem, .8vw + 1rem, 2.2rem);
+  /* 1.35-2.2rem -> 2.2-3.6rem: đo được cap-height cũ (~13.1mm ở 4K) dưới sàn
+     ~20mm/4m — giá là thông tin CHÍNH của mỗi vé, nâng lên chạm/vượt sàn đó
+     (~1.63×, xem báo cáo đo kèm code review). */
+  font-size: clamp(2.2rem, 1.3vw + 1.6rem, 3.6rem);
   color: var(--price);
   flex: none;
 }

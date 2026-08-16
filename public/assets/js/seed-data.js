@@ -698,3 +698,102 @@ export const SEED_DATA = {
     },
   ],
 };
+
+// =============================================================================
+// ẢNH DEMO TẠM THỜI — CÔNG CỤ XEM TRƯỚC, KHÔNG PHẢI DỮ LIỆU THẬT =============
+// -----------------------------------------------------------------------------
+// Yêu cầu của chủ quán: "put demo images in for every dish so he can judge the
+// design now; he will replace them with real photography later." Ở khối
+// `menu` phía trên, CHỈ 5/27 món có ảnh cắt nền THẬT (xem chú thích "Ảnh món"
+// đầu file) — 22 món còn lại `imageUrl: ""` nên hiện placeholder glyph, khiến
+// chủ quán KHÔNG thấy được hình hài thật của bảng món khi đầy đủ ảnh (thứ ông
+// ấy cần soát ngay bây giờ).
+//
+// Khối này gán TẠM 1 trong 5 ảnh có sẵn cho MỌI món còn thiếu ảnh — chọn ảnh
+// "ít sai nhất" theo nhóm món (bảng bên dưới). ĐÂY LÀ ẢNH GIẢ — vd món Kaczka
+// (vịt) có thể hiện ảnh gà, món Surówka (salad) có thể hiện ảnh không liên
+// quan — SAI về nội dung món, ĐÚNG chủ đích (chỉ để lấp card cho mục đích xem
+// bố cục/mật độ, không phải mô tả đúng món). KHÔNG được để lẫn vào dữ liệu
+// thật lâu dài — xem "CÁCH GỠ BỎ" ngay dưới đây.
+//
+// CÁCH GỠ BỎ (khi chủ quán đã có ảnh thật, hoặc muốn tắt ảnh demo ngay lập tức):
+//   1. Đổi hằng số DEMO_PHOTO_FILL_ENABLED ngay dưới đây thành `false` (hoặc
+//      xoá nguyên khối `if (DEMO_PHOTO_FILL_ENABLED) {...}` bên dưới nó) rồi
+//      triển khai lại (deploy) trang. Từ lúc này, seed-data.js KHÔNG còn gán
+//      ảnh demo cho món nào nữa — 22 món chưa có ảnh thật trở lại rỗng.
+//   2. Chỉ sửa file này KHÔNG tự đổi dữ liệu đang chạy thật trong Firestore —
+//      Firestore đã được nhập 1 lần rồi, độc lập với file này từ đó về sau.
+//      Để ảnh demo (hoặc việc gỡ ảnh demo) thật sự lên 4 màn hình, vào trang
+//      Admin (barkinglong.pl/admin/) → mục "Thiết lập & dữ liệu mẫu" → bấm nút
+//      có sẵn "📥 Nhập thực đơn (27 món)" → chọn "Thêm vào" (KHÔNG chọn "Xoá
+//      hết rồi nhập lại" trừ khi thật sự muốn xoá món chủ quán tự thêm ngoài
+//      27 món seed). Nút này đã có sẵn trong admin — chủ quán không cần biết
+//      gì về code, chỉ cần bấm ĐÚNG NÚT NÀY LẦN NỮA sau khi bước 1 đã tắt cờ
+//      (hoặc admin/dev đã redeploy) là ảnh demo biến mất khỏi 4 màn hình trong
+//      ~1 giây, không cần tải lại trang.
+//   LƯU Ý AN TOÀN: nếu chủ quán đã tự tải ảnh THẬT cho đúng 1 trong 22 món
+//   đang dùng ảnh demo (qua tab "Món ăn", cùng id với seed) TRƯỚC KHI bấm lại
+//   nút "Nhập thực đơn" ở bước 2, ảnh thật đó SẼ BỊ GHI ĐÈ về rỗng (vì cùng id
+//   với seed-data.js, chế độ "Thêm vào" ghi đè theo id) — vì vậy nên tắt ảnh
+//   demo NGAY khi có ảnh thật đầu tiên, đừng để 2 nguồn ảnh lẫn lộn cho cùng 1
+//   món. Ảnh thật của đúng 5 món đã có sẵn ở trên (pad-thai, kurczak,
+//   makaron-chinski, udon, kidbox-2) không bao giờ bị đụng tới — seed-data.js
+//   của 5 món đó vẫn giữ y nguyên ảnh thật dù cờ trên bật hay tắt.
+// =============================================================================
+const DEMO_PHOTO_FILL_ENABLED = true; // <-- ĐỔI THÀNH false RỒI DEPLOY LẠI + BẤM "NHẬP THỰC ĐƠN" TRONG ADMIN ĐỂ GỠ ẢNH DEMO
+
+// Ảnh "ít sai nhất" theo NHÓM danh mục (category) — dùng khi món không có
+// lựa chọn riêng khớp hơn trong DEMO_PHOTO_BY_ID bên dưới. 5 ảnh thật + nội
+// dung từng ảnh xem chú thích đầy đủ ở khối "Ảnh món" phía trên.
+const DEMO_PHOTO_BY_CATEGORY = {
+  // Không có ảnh nào trong 5 ảnh là canh/súp thật — ảnh có sốt/nước sốt đậm
+  // (kurczak.webp) là proxy gần nhất trong số 5 ảnh khô/chiên còn lại.
+  zupy: "/assets/img/dishes/kurczak.webp",
+  // "Sajgonki" (nem rán) — món chiên giòn, dùng ảnh đồ chiên có sẵn.
+  sajgonki: "/assets/img/dishes/kidbox-2.webp",
+  // "Kurczak chrupiący" = gà CHIÊN GIÒN — cùng lý do đồ chiên như trên.
+  "kurczak-ch": "/assets/img/dishes/kidbox-2.webp",
+  // Dania główne (món chính có sốt) — cùng "họ" với chính ảnh kurczak.webp
+  // gốc (vốn cũng là 1 món trong nhóm dania).
+  dania: "/assets/img/dishes/kurczak.webp",
+  // Makarony i ryż (mì/cơm xào) — mặc định dùng ảnh mì xào có sẵn.
+  makarony: "/assets/img/dishes/makaron-chinski.webp",
+  kidbox: "/assets/img/dishes/kidbox-2.webp",
+  // Dodatki (phần thêm/đóng gói) — nhóm hỗn hợp (cơm, salad, túi giấy...),
+  // không món nào trong 5 ảnh khớp thật sự — dùng ảnh trung tính nhất làm mặc
+  // định, các món "chrupiący"/tôm trong nhóm này có override riêng bên dưới.
+  dodatki: "/assets/img/dishes/kurczak.webp",
+};
+
+// Ghi đè TỪNG MÓN khi ảnh theo category ở trên không phải lựa chọn tốt nhất
+// (khớp nội dung ảnh rõ hơn, hoặc tránh lặp y hệt ảnh category mặc định với
+// món ngay cạnh nó trong cùng danh mục).
+const DEMO_PHOTO_BY_ID = {
+  // Đúng ảnh có tôm chiên (kidbox-2.webp) — khớp nội dung tốt hơn hẳn ảnh
+  // category mặc định của "dania"/"dodatki".
+  "krewetki-chrupiace": "/assets/img/dishes/kidbox-2.webp",
+  "krewetki-chrupiace-dodatek": "/assets/img/dishes/kidbox-2.webp",
+  // 2 món "phần thêm" còn lại vốn CHIÊN GIÒN (gà chiên/nem rán) — dùng ảnh đồ
+  // chiên (kidbox-2.webp) thay vì ảnh category mặc định "dodatki" (dùng cho
+  // các phần thêm KHÔNG chiên như cơm/salad/túi giấy), cùng lý do đã áp dụng
+  // cho "sajgonki"/"kurczak-ch" ở bảng category phía trên.
+  "kurczak-chrupiacy-dodatek": "/assets/img/dishes/kidbox-2.webp",
+  "sajgonka-dodatek": "/assets/img/dishes/kidbox-2.webp",
+  // Cơm chiên — cùng kiểu chế biến (xào/chiên trong chảo) với ảnh mì xào.
+  "ryz-smazony": "/assets/img/dishes/makaron-chinski.webp",
+  // Mì khác — dùng ảnh mì còn lại (udon.webp) để KHÔNG trùng y hệt ảnh
+  // makaron-chinski.webp vừa gán cho "ryz-smazony" ở trên (2 món mì/cơm nằm
+  // cạnh nhau cùng trang không nên hiện đúng 1 tấm ảnh giống hệt).
+  "makaron-sojowy": "/assets/img/dishes/udon.webp",
+  // Cùng hộp Kid-Box, khác đạm — ảnh gần nhất có sẵn (kidbox-2.webp, vốn là
+  // ảnh CHÍNH XÁC của Kid-Box 2 cạnh nó).
+  "kidbox-1": "/assets/img/dishes/kidbox-2.webp",
+};
+
+if (DEMO_PHOTO_FILL_ENABLED) {
+  SEED_DATA.menu.forEach((item) => {
+    if (item.imageUrl) return; // đã có ảnh THẬT — không đụng vào, giữ nguyên
+    const demoUrl = DEMO_PHOTO_BY_ID[item.id] || DEMO_PHOTO_BY_CATEGORY[item.category];
+    if (demoUrl) item.imageUrl = demoUrl;
+  });
+}

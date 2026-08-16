@@ -1093,3 +1093,213 @@ body::-webkit-scrollbar {
     transition: none !important;
   }
 }
+
+/* =============================================================================
+   CHẾ ĐỘ XEM TRÊN ĐIỆN THOẠI (≤900 CSS px) — "review aid", KHÔNG PHẢI thiết
+   kế panel thứ 2
+   -----------------------------------------------------------------------------
+   BỐI CẢNH LỖI (đã xác minh lại, không suy đoán): mọi kích thước trong file
+   này quy về `rem`, và `html{font-size}` ở đầu file co giãn tuyến tính theo
+   100vw NHƯNG có sàn cứng 12px (`clamp(12px, calc(100vw/120), 40px)`). Sàn đó
+   là AN TOÀN cho 2 độ phân giải panel thật (1920/3840 — không bao giờ chạm
+   sàn) nhưng SAI khi cùng công thức đó chạy trên khung nhìn ~390px CSS
+   (iPhone Safari, `<meta name="viewport" content="width=1920">` không được
+   tôn trọng nên trang KHÔNG tự zoom-out về 1920 mà dựng thật ở ~390 CSS px):
+   root font-size bị kẹp cứng ở sàn 12px (390/120 = 3.25px, dưới sàn), trong
+   khi lưới `.menu-grid-layer[data-count="6"]` VẪN chia 3 cột như thiết kế
+   panel — mỗi ô chỉ còn ~130px ngang. `--card-name-fs` cố định 3.25rem = 39px
+   (SÀN đọc ở khoảng cách 4-5m, KHÔNG được phép hạ — xem chú thích ở khối "Thẻ
+   món" phía trên) nhét vào ô 130px khiến `overflow-wrap:anywhere` phải bẻ
+   TỪNG TỪ làm nhiều mảnh ("KUR CZA K" thay vì "KURCZAK") — đúng lỗi chủ quán
+   chụp màn hình gửi lại. Đây KHÔNG phải bug ở công thức `clamp()` (công thức
+   đó đúng và bắt buộc phải giữ cho 2 độ phân giải panel thật, xem ARCHITECTURE
+   mục 9(a)) — đây là hệ quả của việc DÙNG NGUYÊN 1 thiết kế "bảng hiệu 4K xem
+   từ xa" cho 1 khung nhìn nhỏ hơn ~5-10 LẦN mà KHÔNG có breakpoint nào xử lý.
+
+   HƯỚNG XỬ LÝ ĐÃ CHỌN, VÀ VÌ SAO KHÔNG CHỌN 2 HƯỚNG CÒN LẠI:
+   - ĐÃ CHỌN — "single-column stack": dưới 900px, lưới nhiều cột (bất kể
+     data-count) đổi thành 1 CỘT DỌC cuộn được, mỗi thẻ món chiếm TRỌN chiều
+     rộng khung nhìn thay vì 1/3 hay 1/6. `--card-name-fs` vẫn giữ nguyên
+     3.25rem (KHÔNG hạ sàn chữ) — chỉ đổi HÌNH HỌC của ô chứa nó (390px thay
+     vì ~130px) là đủ để tên món dài nhất thực đơn thật ("Kurczak
+     chrupiący"/"Krewetki chrupiące") xuống dòng ở RANH GIỚI TỪ, không còn bẻ
+     giữa từ — xem phép đo trong báo cáo kèm code review.
+   - KHÔNG chọn "scale cả bảng xuống như 1 khối" (vd `transform:scale()` cả
+     `.stage`): cách đó giữ đúng bố cục 3 cột nhưng chữ sẽ scale theo đúng tỷ
+     lệ NHỎ HƠN NỮA (bảng thiết kế cho 1920px co về 390px là còn 20%, tức chữ
+     39px co còn ~8px — KHÔNG đọc được, hỏng đúng mục tiêu "honestly readable
+     for review"). Cách "co cả khối" chỉ hợp lý nếu khung nhìn đích còn đủ
+     lớn để giữ nguyên mật độ 3 cột mà chữ vẫn đọc được (vd máy tính bảng
+     ngang) — không đúng với điện thoại dọc ~390px.
+   - KHÔNG chọn "chỉ nới sàn clamp() xuống thấp hơn": clamp() là 1 CÔNG THỨC
+     DUY NHẤT dùng chung cho panel THẬT (1920/3840) — sửa hằng số của nó ở
+     đây (ngoài `@media`) sẽ đổi luôn cả panel thật, đúng điều brief cấm
+     ("Không được phụ thuộc vào thẻ meta... mọi thay đổi CSS phải kiểm ở CẢ
+     1920×1080 lẫn 3840×2160"). Ghi đè bên TRONG `@media (max-width: 900px)`
+     dưới đây tách hẳn 2 công thức — panel thật (>900px, luôn luôn đúng vì
+     panel không bao giờ nhỏ hơn 1920) không hề chạy qua khối này.
+
+   NGƯỠNG 900px: khớp ĐÚNG ngưỡng `isMobilePreviewViewport()` mà admin.js đã
+   dùng sẵn cho tab "Xem trước" (lưới 1 cột + `&safe=1` cho iframe xem trước
+   trên điện thoại) — dùng chung 1 con số cho toàn hệ thống thay vì bịa thêm
+   1 ngưỡng riêng ở đây. Không bao giờ khớp panel thật (luôn ≥1920px).
+
+   GHI CHÚ QUAN TRỌNG VỀ TAB "XEM TRƯỚC" CỦA ADMIN: khối `@media` này KHÔNG
+   ảnh hưởng gì tới 4 iframe `omhN.html?preview=1` trong tab đó, kể cả khi
+   chính trang admin đang mở trên điện thoại — `admin.css` gán CỨNG
+   `.preview-frame__stage iframe { width:1920px; height:1080px; }` rồi
+   `admin.js` (`scalePreviewFrames()`) tự tính `transform: scale()` để thu
+   nhỏ khối 1920px đó vừa khung xem trước, KHÔNG đổi kích thước CSS px thật
+   bên trong iframe — bên trong luôn thấy khung nhìn 1920px bất kể màn ngoài
+   rộng bao nhiêu, nên `@media (max-width:900px)` không bao giờ khớp bên
+   trong các iframe đó (900 < 1920 luôn đúng). Vì vậy tab xem trước hiển thị
+   ĐÚNG bố cục panel gốc, chỉ thu nhỏ lại — đã đọc được tốt trên điện thoại
+   TỪ TRƯỚC, không cần sửa gì thêm ở admin.
+
+   CHỦ ĐỘNG TẮT chuyển cảnh 2-layer (double-buffer fade/slide/flip/curtain)
+   và hiệu ứng chống lưu ảnh (`burnInDrift`) ở chế độ này: cả 2 cơ chế đó
+   được thiết kế cho 1 khung hình CỐ ĐỊNH kích thước viewport (2 layer chồng
+   `position:absolute` lên nhau trong lúc chuyển cảnh, `.stage` tự dịch
+   ±4px). Ở đây `.menu-grid-layer` chuyển sang `position:static` để cuộn
+   được theo chiều dọc — chồng 2 layer lên nhau trong dòng chảy tài liệu sẽ
+   RA 2 danh sách món xếp lồng vào nhau (không phải chồng hình ảnh như thiết
+   kế gốc). Ẩn hẳn layer không active (`display:none`) thay vì
+   opacity/transform — cắt ngay, không mượt, nhưng đây là "công cụ xem trước
+   trung thực", brief đã nói rõ "does not have to be beautiful". Chống lưu
+   ảnh (burn-in) vốn dành cho panel chạy 24/7 không người trông coi — vô
+   nghĩa với 1 trang cuộn được do người xem chủ động mở, tắt hẳn cho gọn.
+   ========================================================================== */
+@media (max-width: 900px) {
+  html {
+    /* Cùng triết lý "root font-size co theo 100vw" như công thức gốc, nhưng
+       hằng số riêng cho khung nhìn nhỏ — 390px (iPhone dọc) -> ~15.6px,
+       900px (ngưỡng trên) -> 19px (trần). Số nhân 4vw (không phải /120 như
+       công thức gốc) được CHỌN RIÊNG cho khung nhìn nhỏ để chữ tên món
+       (--card-name-fs: 3.25rem, KHÔNG đổi) ra cỡ dễ đọc (~47-60px) trên 1
+       cột full-width mà không quá khổ. */
+    font-size: clamp(13px, 4vw, 19px);
+  }
+
+  #app {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .stage {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    animation: none; /* burnInDrift vô nghĩa ở chế độ cuộn tay, xem ghi chú khối trên */
+  }
+
+  .grid-stage {
+    position: relative;
+    flex: none;
+    min-height: 0;
+  }
+
+  .menu-grid-layer,
+  .menu-grid-layer.featured {
+    position: static;
+    inset: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding: 0.75rem;
+    width: 100%;
+  }
+  /* Chỉ layer đang active mới chiếm chỗ trong dòng chảy tài liệu — xem lý do
+     tắt hẳn double-buffer ở ghi chú khối trên.
+     QUAN TRỌNG — KHÔNG dùng `display:none` ở đây (đã thử, gây lỗi thật): 2 lần
+     gọi `buildCards()`/`fitCardPrices()` (display.js) đo `getBoundingClientRect()`
+     của `.card-name` để tự co giá/nới letter-spacing khi tên món dài không vừa
+     1 hàng — nhưng đúng lúc đo, layer "sắp active" (`incoming`) VẪN còn mang
+     class "layer-hidden" (display.js chỉ đổi sang "layer-incoming" SAU khi
+     `buildCards()` đã chạy xong, xem `renderPage()`). Nếu "không active" ==
+     `display:none`, MỌI phần tử con (kể cả `.card-name`) trả về
+     `getBoundingClientRect()` toàn số 0 trong lúc đo -> `fitsOneLine()` luôn
+     coi là "vừa 1 hàng" (0 <= bất kỳ số dương nào) -> hàm thoát ngay ở bước
+     đầu, giá/tên giữ nguyên cỡ mặc định -> tên món dài ("Kurczak
+     chrupiący"/"Krewetki chrupiące") sau đó render THẬT lại tràn 3-4 dòng, có
+     từ bị bẻ giữa chừng (ĐÚNG lỗi "shatter" đang cần sửa, chỉ là dời từ
+     nguyên nhân "cột lưới hẹp" sang nguyên nhân "đo bị mù vì display:none").
+     Dùng `position:absolute;inset:0` (giống HỆT cách `.menu-grid-layer` mặc
+     định ở đầu file luôn dùng cho double-buffer) thay vì `display:none`: vẫn
+     lấy layer khỏi dòng chảy tài liệu (không cộng thêm chiều cao cuộn) NHƯNG
+     vẫn có kích thước/bố cục THẬT (chiều rộng = `.grid-stage`, chiều rộng
+     mới là thứ quyết định xuống dòng) nên `getBoundingClientRect()` trong lúc
+     đo vẫn đúng — `opacity:0` lo phần ẩn mắt, không đụng tới layout. */
+  .menu-grid-layer:not(.layer-active) {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+  /* Hairline phân cách ô (border-right/border-bottom theo nth-child) được
+     tính cho hình học LƯỚI NHIỀU CỘT — vô nghĩa (và có thể sai vị trí) khi
+     xếp cột dọc — bỏ hẳn, dùng `gap` phía trên làm ranh giới thay thế. */
+  .menu-grid-layer .card {
+    border: 0 !important;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+  }
+  .card-media {
+    flex: none;
+    width: 100%;
+    height: 42vw;
+    max-height: 15rem;
+  }
+  .card-content {
+    flex: none;
+  }
+  /* Tên món + giá đứng CẠNH NHAU trên desktop (đúng 1 hàng, đủ rộng vì thẻ
+     rộng ~1/3 hoặc 1/6 panel 4K). Ở thẻ full-width điện thoại, dù thẻ đã
+     rộng hết cỡ (~360-390px) vẫn là QUÁ HẸP để 1 hàng chứa cả tên dài nhất
+     thực đơn thật ("Kurczak chrupiący"/"Krewetki chrupiące") LẪN 1 chip giá
+     khoảng ("24–31") cùng lúc — dù `fitCardPrices()` (display.js) đã co giá
+     về sàn + xiết letter-spacing hết mức, phần còn lại cho tên vẫn không đủ
+     rộng cho từ dài nhất ("chrupiący"/"chrupiące", 9 ký tự) → ĐO ĐƯỢC THẬT
+     bằng Playwright: `overflow-wrap:anywhere` phải bẻ GIỮA từ đó
+     ("chrupiąc" + "y" 2 dòng) — đúng dạng lỗi "shatter" cần tránh, dù nhẹ hơn
+     hẳn bản gốc 3 cột. Xếp tên/giá THÀNH 2 HÀNG RIÊNG (tên trên, giá dưới)
+     thay vì cùng 1 hàng cho MỌI thẻ ở điện thoại — tên món có TRỌN chiều
+     rộng thẻ (~350-370px) thay vì chia đôi với giá, đủ cho cả từ dài nhất mà
+     không cần bẻ giữa từ (xem phép đo trong báo cáo kèm code review). */
+  .row-name-price {
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 0.3rem;
+  }
+  .price-tag {
+    margin-left: 0;
+  }
+
+  .feature-media {
+    flex: none;
+    width: 100%;
+    height: 58vw;
+    max-height: 20rem;
+  }
+  .feature-body {
+    flex: none;
+  }
+
+  .idle-screen {
+    position: static;
+    min-height: 70vh;
+  }
+
+  .conn-banner {
+    position: fixed;
+  }
+}

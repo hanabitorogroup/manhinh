@@ -40,6 +40,20 @@
      --font-option       (CỐ ĐỊNH, như trên) font dòng lựa chọn (.card-option)
                          + giá (.price-tag) — Nunito 800 tự host.
      --overlay-image    ảnh trang trí phủ nền, có thể "none"
+     --line              (SUY RA bởi applyTheme(), MỚI) màu hairline phân
+                         cách các ô thẻ món trên nền màu đặc bão hoà — công
+                         thức "rgba(outlineColor, 0.16)", đúng bản duyệt (xem
+                         scratchpad/revA2/pairings/build_pairings.py). Dùng ở
+                         border-right/border-bottom của .card, xem khối
+                         "Thẻ món" bên dưới — KHÔNG dùng gap+box riêng từng ô
+                         như bản trước đó (1 trong 3 sai lệch chủ quán chỉ ra:
+                         "cards became rounded boxes with their own
+                         background and gaps").
+     --outline-ink       (SUY RA, MỚI) mực đọc được trên 1 nền ĐẶC màu
+                         var(--outline) — dùng cho chữ phụ (nhãn trục biến
+                         thể) trên "flag-tag" của trang nổi bật 1 món, xem
+                         khối "Trang nổi bật" bên dưới. Cùng công thức
+                         --accent-ink/--price-ink.
      --scrim-rgb        (SUY RA bởi applyTheme(), không do theme ghi trực
                          tiếp) "r,g,b" gốc màu lớp phủ sau thẻ món — "0,0,0"
                          (đen) nếu textColor của theme sáng, "255,255,255"
@@ -208,6 +222,10 @@ body::-webkit-scrollbar {
   --scrim-rgb: 0, 0, 0;
   --accent-ink: #000000;
   --price-ink: #000000;
+  /* --line / --outline-ink: giá trị mặc định an toàn trước khi applyTheme()
+     chạy lần đầu — xem chú thích đầy đủ ở đầu file và trong themes.js. */
+  --line: rgba(0, 0, 0, 0.16);
+  --outline-ink: #ffffff;
 }
 
 /* ---------- Canvas hiệu ứng hạt -------------------------------------------- */
@@ -289,18 +307,28 @@ body::-webkit-scrollbar {
   grid-template-rows: repeat(2, 1fr);
   grid-auto-rows: 1fr;
   grid-auto-flow: dense; /* lưới đặc — phòng thủ nếu số món ngoài dải 1..6 dự kiến */
-  gap: clamp(0.625rem, 1.3vw, 1.625rem);
-  /* Lề ngoài an toàn — KHÔNG phải khoảng trống trang trí. Sau khi bỏ thanh
-     tiêu đề "MENU" (showHeader mặc định false, xem display.js), lưới đã
-     nới ra chiếm toàn bộ chiều cao panel; lề này chỉ còn nhiệm vụ chống
-     "overscan" — vài đầu phát/khung TV tín hiệu vẫn cắt mất một dải mép
-     ảnh dù đây là panel 4K độ nét gốc qua Android SoC, không phải CRT. Hạ
-     từ ~1.4vw (bản có tiêu đề) xuống ~1vw (~1% mỗi cạnh, gần mức "action
-     safe" tối thiểu 3.5-5% dùng cho phát sóng CRT truyền thống nhưng vẫn
-     còn dư so với overscan thực tế của panel số hiện đại) — đủ sát mép để
-     món ăn dùng trọn không gian 4K, vẫn còn biên để giá tiền/tên món không
-     bao giờ bị cắt nếu panel overscan nhẹ. */
+  /* KHÔNG còn `gap` — thiết kế đã duyệt là 1 MẢNG MÀU PHẲNG chạy sát mép,
+     các ô chỉ phân cách bằng hairline (border-right/border-bottom trên
+     .card, xem khối "Thẻ món" bên dưới), KHÔNG phải khoảng trống giữa các
+     "hộp" riêng — đây chính là sai lệch #1 chủ quán chỉ ra so với bản
+     duyệt ("cards became rounded boxes with their own background and
+     gaps... flat, edge-to-edge, đừng để phí cm nào"). Bỏ gap trả lại toàn
+     bộ khoảng đó (từng rộng tới ~1.6rem MỖI khe, nhân với 7 khe trong lưới
+     6 cột × 2 hàng) cho ảnh/chữ — đúng yêu cầu "squeeze bố cục cho nội
+     dung lấp đầy panel". */
+  /* Lề ngoài an toàn — KHÔNG phải khoảng trống trang trí, GIỮ NGUYÊN không
+     đổi theo yêu cầu "chỉ giữ lại lề an toàn overscan đã có căn cứ trong
+     CSS". Sau khi bỏ thanh tiêu đề "MENU" (showHeader mặc định false, xem
+     display.js), lưới đã nới ra chiếm toàn bộ chiều cao panel; lề này chỉ
+     còn nhiệm vụ chống "overscan" — vài đầu phát/khung TV tín hiệu vẫn cắt
+     mất một dải mép ảnh dù đây là panel 4K độ nét gốc qua Android SoC,
+     không phải CRT. Hạ từ ~1.4vw (bản có tiêu đề) xuống ~1vw (~1% mỗi
+     cạnh, gần mức "action safe" tối thiểu 3.5-5% dùng cho phát sóng CRT
+     truyền thống nhưng vẫn còn dư so với overscan thực tế của panel số
+     hiện đại) — đủ sát mép để món ăn dùng trọn không gian 4K, vẫn còn biên
+     để giá tiền/tên món không bao giờ bị cắt nếu panel overscan nhẹ. */
   padding: clamp(0.5rem, 1vw, 1.5rem);
+  background: var(--bg);
   --layer-delay: 0.7s;
   backface-visibility: hidden;
 }
@@ -384,13 +412,62 @@ body::-webkit-scrollbar {
      với 1-2 dòng tên/dòng lựa chọn ở mật độ 6-up đã đo). */
   grid-template-rows: minmax(0, 1fr) auto;
   row-gap: clamp(0.2rem, 0.45vh, 0.55rem);
-  border-radius: clamp(0.625rem, 1vw, 1.25rem);
+  /* KHÔNG còn border-radius/box-shadow/nền riêng-tách-biệt — sai lệch #1 so
+     với bản duyệt (xem ghi chú ở .menu-grid-layer phía trên). background
+     vẫn là var(--card-bg) (LUÔN bằng đúng var(--bg) ở cả 6 theme, xem
+     themes.js) để "vẽ đè" lên .stage bên dưới (ảnh/gradient nền), nhưng vì
+     không bo góc/không đổ bóng/không gap nữa nên 12 ô liền kề nhau trông
+     ĐÚNG LÀ 1 MẢNG MÀU PHẲNG DUY NHẤT chạy sát mép panel — khớp mô tả chủ
+     quán "flat colour field running edge to edge". Phân cách các ô CHỈ
+     bằng hairline var(--line), xem khối "Hairline phân cách ô" ngay dưới
+     đây — không phải khoảng gap/viền hộp như trước. Padding trong mỗi ô
+     hạ nhẹ (khớp scratchpad/revA2/pairings/build_pairings.py, mockup đã
+     duyệt) để đòi thêm không gian cho ảnh/chữ, đúng yêu cầu "squeeze cho
+     nội dung lấp đầy panel". */
   background: var(--card-bg);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, .35); /* độ nổi trung tính, không thuộc theme */
-  padding: clamp(0.5rem, 0.9vh, 1.1rem) clamp(0.75rem, 1.15vw, 1.5rem) clamp(0.6rem, 1vh, 1.3rem);
+  padding: clamp(0.4rem, 0.7vh, 0.9rem) clamp(0.6rem, 1vw, 1.2rem);
   animation: cardEnter .6s cubic-bezier(.2,.8,.2,1) both;
   animation-delay: calc(var(--layer-delay) + (var(--i, 0) * 60ms));
 }
+
+/* ---------- Hairline phân cách ô (thay cho gap/box riêng) -------------------
+   Vẽ đường phân cách MỎNG (var(--line), suy ra = mực theme mờ 16%, xem
+   themes.js) CHỈ ở các cạnh nằm GIỮA 2 ô liền kề — KHÔNG bao giờ ở cạnh
+   ngoài cùng của lưới (đó là điều khiến thiết kế "chạy sát mép, không viền
+   khung" — nếu vẽ border quanh toàn lưới sẽ tạo ra 1 khung màu khác ở mép
+   panel, đúng thứ owner không muốn). Viết tường minh theo TỪNG cách chia ô
+   của data-count (1..6, xem khối "Phân bố lưới theo số lượng món" phía
+   trên) vì mỗi cách chia có hình học khác nhau (số cột/số hàng thật sự đổi
+   theo count) — không có 1 công thức nth-child chung nào đúng cho cả 6
+   trường hợp. --hairline-w dùng rem (không px cứng) để dày lên đúng tỉ lệ
+   ở màn 4K giống mọi kích thước khác trong file này. */
+.card { --hairline-w: clamp(0.055rem, 0.05vw + 0.03rem, 0.09rem); }
+
+/* count=6: lưới 3 cột × 2 hàng chuẩn — dọc giữa cột 1|2 và 2|3, ngang giữa
+   hàng 1|2 (giống hệt bản mockup gốc đã duyệt: nth-child(3n) / nth-child(-n+3)). */
+.menu-grid-layer[data-count="6"] .card:not(:nth-child(3n)) { border-right: var(--hairline-w) solid var(--line); }
+.menu-grid-layer[data-count="6"] .card:nth-child(-n+3) { border-bottom: var(--hairline-w) solid var(--line); }
+
+/* count=5: hàng trên 3 ô hẹp, hàng dưới 2 ô rộng (xem khối phân bố lưới) —
+   dọc giữa ô 1|2, 2|3 (hàng trên) và 4|5 (hàng dưới); ngang giữa 2 hàng. */
+.menu-grid-layer[data-count="5"] .card:nth-child(-n+3) { border-bottom: var(--hairline-w) solid var(--line); }
+.menu-grid-layer[data-count="5"] .card:nth-child(1),
+.menu-grid-layer[data-count="5"] .card:nth-child(2),
+.menu-grid-layer[data-count="5"] .card:nth-child(4) { border-right: var(--hairline-w) solid var(--line); }
+
+/* count=4: lưới 2 cột × 2 hàng — dọc giữa cột trái/phải (ô lẻ), ngang giữa
+   2 hàng (2 ô đầu). */
+.menu-grid-layer[data-count="4"] .card:nth-child(odd) { border-right: var(--hairline-w) solid var(--line); }
+.menu-grid-layer[data-count="4"] .card:nth-child(-n+2) { border-bottom: var(--hairline-w) solid var(--line); }
+
+/* count=3: 1 hàng 3 ô cao hết chiều cao — chỉ có hairline dọc, không có
+   hairline ngang (không có ô thứ 2 theo chiều dọc). */
+.menu-grid-layer[data-count="3"] .card:not(:nth-child(3n)) { border-right: var(--hairline-w) solid var(--line); }
+
+/* count=2: 2 ô cạnh nhau, cao hết panel — 1 hairline dọc duy nhất ở giữa. */
+.menu-grid-layer[data-count="2"] .card:first-child { border-right: var(--hairline-w) solid var(--line); }
+
+/* count=1: 1 ô phủ toàn panel — không có hairline nào (không có ô liền kề). */
 
 .card-media {
   grid-row: 1;
@@ -575,7 +652,18 @@ body::-webkit-scrollbar {
    ĐỔI mà mockup chưa từng kiểm (khoảng giá "17–23", "od 20" của món có biến
    thể) mà không bị cắt hình. KHÔNG còn hậu tố tiền tệ mặc định — xem
    formatPrice()/settings.currency trong display.js (đổi currency:"" để tắt,
-   currency:null/thiếu vẫn mặc định "zł" như cũ, không phá dữ liệu cũ). */
+   currency:null/thiếu vẫn mặc định "zł" như cũ, không phá dữ liệu cũ).
+   MÀU: chip nền TỐI (var(--outline), tái dùng đúng biến viền chữ có sẵn —
+   luôn = mực của theme) + SỐ VÀNG GOLD (var(--price), field priceColor của
+   theme — xem themes.js, đã sửa lại đúng gold ở cả 6 theme) — ĐÚNG bản
+   duyệt gốc ("--price-bg:#1a1206; --price-ink:#ffc400" trong
+   scratchpad/revA2/pairings/build_pairings.py). TRƯỚC ĐÂY 2 vai trò này bị
+   NGƯỢC (nền = var(--price), chữ = var(--price-ink) suy ra tương phản) —
+   với priceColor từng bị đặt trùng textColor (tối) ở 4/6 theme, kết quả là
+   "chip tối + SỐ TRẮNG", đúng sai lệch #2 chủ quán chỉ ra ("price numerals
+   render white"). Không cần -webkit-text-stroke/scrim gì thêm — tương phản
+   > 9.9:1 ở cả 6 theme (đo bằng contrastRatio() trong themes.js), xem ghi
+   chú tại từng theme.priceColor. */
 .price-tag {
   flex: 0 0 auto;
   margin-left: auto;
@@ -594,8 +682,8 @@ body::-webkit-scrollbar {
      rồi sửa về rem mới hết wrap, xem báo cáo kèm code review. */
   padding: 0.3rem 0.85rem;
   border-radius: 0.35rem;
-  background: var(--price);
-  color: var(--price-ink);
+  background: var(--outline);
+  color: var(--price);
   white-space: nowrap;
 }
 
@@ -643,6 +731,163 @@ body::-webkit-scrollbar {
   letter-spacing: .06em;
   text-transform: uppercase;
   box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+/* ---------- Trang nổi bật (Option 2 "grid+featured", settings.layout) ------
+   1 trang riêng — page 2 của MỖI màn hình — dành TOÀN BỘ panel cho ĐÚNG 1
+   món chủ quán muốn đẩy mạnh (settings.featuredByScreen[N]). Thiết kế theo
+   đúng ảnh tham chiếu chủ quán đưa ("MAMA'S WOK / PAD THAI", nền olive
+   phẳng): mảng màu phẳng (var(--bg), giống hệt trang lưới — KHÔNG phải
+   theme/nền riêng), 1 ảnh món RẤT LỚN, tên món RẤT LỚN, mô tả, giá từng
+   biến thể dạng "vé/mũi tên" (clip-path, ĐÚNG hình dạng bản mockup gốc đã
+   duyệt trước khi bị đơn giản hoá thành chip bo tròn cho thẻ lưới — an
+   toàn dùng lại ở đây vì trang này chỉ có 1 món, không có ràng buộc "tên
+   dài + giá rộng trên cùng 1 hàng hẹp" như thẻ lưới 6-up), 1 legend nhỏ
+   giải thích icon "Ostre" (mức độ cay) — KHÔNG banner/logo, KHÔNG chi tiết
+   thừa (xem yêu cầu "generous space, no clutter, no branding").
+   Cùng cơ chế double-buffer + transition (.t-fade/.t-slide/.t-flip/
+   .t-curtain, xem display.js renderPage()) với trang lưới thường — CHỈ
+   thêm class .featured trên chính .menu-grid-layer để đổi grid-template,
+   không cần cơ chế chuyển cảnh riêng (transform/opacity vẫn generic, không
+   quan tâm nội dung bên trong là gì). */
+.menu-grid-layer.featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  column-gap: clamp(1.5rem, 3vw, 4rem);
+  align-items: stretch;
+}
+/* display:contents — <article class="feature"> chỉ để gom nhóm ngữ nghĩa,
+   không tham gia layout: 2 con trực tiếp (.feature-media/.feature-body)
+   mới là 2 cột thật của grid cha .menu-grid-layer.featured. An toàn trên
+   Chromium 80+ (yêu cầu tối thiểu của toàn hệ thống, xem ARCHITECTURE.md
+   mục 9(c) — display:contents có từ Chromium 65). */
+.feature { display: contents; }
+
+.feature-media {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feature-media img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  animation: kenBurns 16s ease-in-out infinite alternate;
+}
+.feature-media.placeholder .placeholder-glyph {
+  width: clamp(7rem, 15vw, 15rem);
+  opacity: .3;
+}
+
+.feature-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.9rem, 1.8vh, 2.2rem);
+  min-width: 0;
+}
+
+.feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4em;
+}
+
+/* Tên món "RẤT LỚN" — sàn cao hơn hẳn --card-name-fs (3.25rem) của thẻ lưới
+   vì trang này chỉ có 1 món, dư thừa không gian (yêu cầu "huge dish name" +
+   "generous space") — vẫn vượt xa sàn 20mm/4m đã duyệt (xem --card-name-fs
+   trong khối "Thẻ món" phía trên), không cần đo lại riêng vì luôn LỚN HƠN
+   sàn đó ở mọi viewport. */
+.feature-name {
+  margin: 0;
+  font-family: var(--font-name);
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+  line-height: .92;
+  font-size: clamp(4rem, 3vw + 3.4rem, 9rem);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.feature-desc {
+  margin: 0;
+  max-width: 62ch;
+  font-family: var(--font-option);
+  font-weight: 800;
+  letter-spacing: .01em;
+  font-size: clamp(1.3rem, .9vw + 1rem, 2.4rem);
+  line-height: 1.3;
+  color: var(--text);
+  opacity: .82;
+  overflow-wrap: anywhere;
+}
+
+.feature-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(0.6rem, 1vw, 1.2rem);
+}
+/* "Flag/arrow" — hình vé gốc của bản mockup đầu tiên (clip-path), ĐƯA TRỞ
+   LẠI riêng cho trang này (thẻ lưới 6-up vẫn giữ chip bo tròn đơn giản hoá,
+   xem ghi chú ở .price-tag) — an toàn ở đây vì mỗi flag chỉ chứa 1 nhãn
+   biến thể (vd "Po tajsku") + 1 giá, không phải "tên món dài nhất + giá
+   rộng nhất" phải vừa 1 hàng hẹp như thẻ lưới. */
+.flag-tag {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .08em;
+  background: var(--outline);
+  padding: .55em 1.1em .55em 1.35em;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 11% 50%);
+  font-family: var(--font-option);
+  font-weight: 800;
+  line-height: 1;
+}
+.flag-label {
+  font-size: clamp(0.85rem, .45vw + .55rem, 1.3rem);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--outline-ink);
+  opacity: .82;
+}
+.flag-price {
+  font-size: clamp(1.5rem, 1vw + 1.1rem, 2.6rem);
+  color: var(--price);
+}
+
+/* Legend nhỏ giải thích icon "Ostre" (mức độ cay) — yêu cầu "small
+   spice-level legend" trong ảnh tham chiếu. Dữ liệu món hiện chỉ có
+   spicy:true/false (KHÔNG có thang 1-3 số trong schema, xem
+   ARCHITECTURE.md mục 2) nên đây là 1 legend CHUNG giải thích ký hiệu
+   (chấm đỏ = cay) — KHÔNG bịa thêm 1 thang số không có thật trong dữ
+   liệu. Tái dùng đúng màu chấm tròn đã dùng cho .tag-pill.tag-spicy phía
+   trên (trung tính có chủ đích, không thuộc theme — xem ghi chú ở đó). */
+.feature-legend {
+  display: flex;
+  align-items: center;
+  gap: .45em;
+  margin-top: auto;
+  opacity: .85;
+  font-family: var(--font-body);
+  font-size: clamp(0.8rem, .35vw + .55rem, 1.15rem);
+  color: var(--text);
+}
+.feature-legend .legend-dot {
+  width: .8em;
+  height: .8em;
+  border-radius: 50%;
+  background: #b3122f;
+  flex: none;
 }
 
 /* ---------- Màn hình chờ (idle) --------------------------------------------- */
@@ -707,6 +952,7 @@ body::-webkit-scrollbar {
 #app.safe-mode .stage,
 #app.safe-mode .card,
 #app.safe-mode .card-media img,
+#app.safe-mode .feature-media img,
 #app.safe-mode .idle-logo {
   animation: none !important;
 }
@@ -715,6 +961,7 @@ body::-webkit-scrollbar {
   .stage,
   .card,
   .card-media img,
+  .feature-media img,
   .idle-logo {
     animation: none !important;
   }

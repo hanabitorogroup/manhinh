@@ -58,7 +58,17 @@ export const THEMES = {
     outlineColor: "#1a1206",
     outlineWidth: 2,
     accent: "#c0392b",
-    priceColor: "#1a1206",
+    // GIÁ TRỊ ĐÃ DUYỆT (scratchpad/revA2/pairings/build_pairings.py:
+    // --price-bg:#1a1206; --price-ink:#ffc400;) — số giá GHI BẰNG GOLD trên
+    // chip nền TỐI (var(--outline), xem display.css .price-tag), không phải
+    // ngược lại. Trước đây field này bị đặt trùng với textColor (mực tối)
+    // khiến .price-tag (nền = var(--price), chữ = var(--price-ink) suy ra
+    // tương phản) render ra "chip tối + SỐ TRẮNG" — lệch hẳn bản duyệt (chip
+    // tối + SỐ VÀNG GOLD). Đây là 1 trong 3 sai lệch chủ quán chỉ ra rõ ràng —
+    // xem display.css phần "Giá — TO HƠN tên món" để biết vai trò 2 biến giờ
+    // đã tách bạch: var(--outline) = nền chip (tối, dùng lại biến viền chữ có
+    // sẵn), var(--price) = MÀU SỐ (gold, đúng field priceColor này).
+    priceColor: "#ffc400",
     cardBg: "#ffc93c",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
@@ -78,7 +88,9 @@ export const THEMES = {
     outlineColor: "#0b2e18",
     outlineWidth: 2,
     accent: "#c8102e",
-    priceColor: "#0b2e18",
+    // Gold — cùng nguyên tắc đã ghi ở THEMES.hanabi (chip TỐI/var(--outline) +
+    // SỐ VÀNG, không còn trùng textColor/SỐ TRẮNG như trước).
+    priceColor: "#ffd166",
     cardBg: "#8fe3a8",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
@@ -98,7 +110,8 @@ export const THEMES = {
     outlineColor: "#0a0a2a",
     outlineWidth: 2,
     accent: "#ff4d6d",
-    priceColor: "#0a0a2a",
+    // Gold — như trên (THEMES.hanabi).
+    priceColor: "#ffe066",
     cardBg: "#ffd60a",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
@@ -119,7 +132,10 @@ export const THEMES = {
     outlineColor: "#3a2417",
     outlineWidth: 2,
     accent: "#ff6f91",
-    priceColor: "#7b4fa0",
+    // Trước đây là tím (#7b4fa0) — không phải bug "trùng textColor" như 4
+    // theme kia, nhưng vẫn LỆCH bản duyệt (chip tối/var(--outline) + SỐ
+    // VÀNG GOLD, xem THEMES.hanabi) nên đổi luôn cho nhất quán cả 6 theme.
+    priceColor: "#ffcf5c",
     cardBg: "#ffd166",
     fontHeading: "Poppins",
     fontBody: "Nunito",
@@ -139,7 +155,8 @@ export const THEMES = {
     outlineColor: "#1a0d02",
     outlineWidth: 2,
     accent: "#6a1b9a",
-    priceColor: "#1a0d02",
+    // Gold (cam-vàng) — như THEMES.hanabi.
+    priceColor: "#ffb347",
     cardBg: "#ff8c1a",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
@@ -160,7 +177,9 @@ export const THEMES = {
     outlineColor: "#012a4a",
     outlineWidth: 2,
     accent: "#ffb703",
-    priceColor: "#fb8500",
+    // Trước đây "#fb8500" (cam) không trùng textColor nhưng vẫn LỆCH bản
+    // duyệt — đổi sang gold nắng hè, cùng nguyên tắc với 5 theme kia.
+    priceColor: "#ffd447",
     cardBg: "#31d6d6",
     fontHeading: "Bebas Neue",
     fontBody: "Inter",
@@ -332,6 +351,29 @@ export function applyTheme(rootEl, theme) {
   rootEl.style.setProperty("--scrim-rgb", pickScrimBase(textColor));
   rootEl.style.setProperty("--accent-ink", pickInkForSolidBg(accent));
   rootEl.style.setProperty("--price-ink", pickInkForSolidBg(priceColor));
+
+  // --outline-ink (SUY RA, MỚI): mực đọc được đặt trên 1 nền ĐẶC màu
+  // var(--outline) — dùng cho chữ PHỤ (không phải số giá vàng chính) đứng
+  // trên cùng 1 chip tối, vd nhãn trục biến thể trên "flag-tag" của trang
+  // nổi bật 1 món (xem display.css, khối "Trang nổi bật"). Cùng công thức
+  // pickInkForSolidBg() với --accent-ink/--price-ink — không giả định
+  // var(--outline) luôn tối (dù thực tế cả 6 theme đều đặt outlineColor =
+  // textColor, luôn tối), để vẫn đúng nếu admin tự tuỳ biến outlineColor
+  // sáng cho theme riêng.
+  const outlineColor = theme.outlineColor || "#000000";
+  rootEl.style.setProperty("--outline-ink", pickInkForSolidBg(outlineColor));
+
+  // --line (SUY RA, MỚI): màu hairline phân cách các ô thẻ món trên nền
+  // MÀU ĐẶC bão hoà (thiết kế đã duyệt — xem display.css khối "Thẻ món":
+  // "flat colour field chạy sát mép, các ô chỉ phân cách bằng hairline",
+  // KHÔNG còn box riêng/bo góc/khoảng gap). Lấy đúng công thức bản mockup
+  // gốc đã duyệt (scratchpad/revA2/pairings/build_pairings.py:
+  // "--line:rgba(26,18,6,.16)" — 26,18,6 chính là RGB của outlineColor
+  // #1a1206 theme hanabi) — tức "màu mực của theme, mờ 16%", suy ra TỰ ĐỘNG
+  // từ outlineColor cho ĐÚNG cả 6 theme (không hardcode 1 màu cứng, không
+  // yêu cầu admin nhập thêm field mới nào trong schema themes/{id}).
+  const outlineRgb = parseColorToRgb(outlineColor) || [0, 0, 0];
+  rootEl.style.setProperty("--line", `rgba(${outlineRgb[0]}, ${outlineRgb[1]}, ${outlineRgb[2]}, 0.16)`);
 
   // Hai biến bổ sung (không nằm trong 9 biến bắt buộc của hợp đồng, nhưng cần
   // thiết để CSS ghép `background-image: var(--overlay-image), var(--bg-gradient)`

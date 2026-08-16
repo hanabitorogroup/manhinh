@@ -195,6 +195,32 @@
             </div>
 
             <div class="control-card">
+              <h4>Kiểu bố cục</h4>
+              <div class="segmented" id="layoutModeSeg">
+                <button data-val="grid">Lưới thường</button>
+                <button data-val="grid+featured">Lưới + trang nổi bật</button>
+              </div>
+              <p class="field-hint">
+                "Lưới + trang nổi bật": mỗi màn hình có THÊM 1 trang riêng dành trọn cho 1 món bạn muốn đẩy mạnh, xen vào vòng xoay sau (hoặc trước) trang lưới bình thường.
+              </p>
+            </div>
+
+            <div class="control-card" id="featuredCard" hidden>
+              <h4>Món nổi bật theo từng màn hình</h4>
+              <div class="featured-screen-grid" id="featuredScreenGrid"><!-- JS render --></div>
+              <div style="margin-top:14px;">
+                <h4 style="margin-bottom:6px;">Vị trí trang nổi bật</h4>
+                <div class="segmented" id="featuredPositionSeg">
+                  <button data-val="after">Sau trang lưới</button>
+                  <button data-val="before">Trước trang lưới</button>
+                </div>
+              </div>
+              <p class="field-hint">
+                Áp dụng cho cả 4 màn hình cùng lúc. Bạn KHÔNG cần chọn đủ 4 màn hình — màn hình chưa chọn món nổi bật vẫn hiện đúng trang lưới như bình thường, không bao giờ bị bỏ trống.
+              </p>
+            </div>
+
+            <div class="control-card">
               <h4>Tiêu đề đầu trang</h4>
               <label class="switch" style="margin-bottom:10px;">
                 <input type="checkbox" id="showHeaderToggle" />

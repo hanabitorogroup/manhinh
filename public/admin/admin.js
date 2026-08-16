@@ -71,6 +71,9 @@ const state = {
     itemsPerPage: 6,
     transition: "fade",
     distribution: "auto",
+    layout: "grid",
+    featuredByScreen: {},
+    featuredPosition: "after",
     currency: "zł",
     showHeader: false,
     headerText_pl: "MENU",
@@ -411,6 +414,10 @@ function startDataSubscriptions() {
       renderItemsTab();
       renderOverview();
       renderLayoutDiagram();
+      // Danh sách món trong 4 <select> "món nổi bật" (tab Bố cục) phải khớp
+      // với state.items mới nhất — vd món vừa đổi tên/ẩn đi phải cập nhật
+      // ngay trong <select>, không đợi admin chuyển tab qua lại.
+      renderFeaturedControls();
     }));
   }
   if (typeof onThemes === "function") {
@@ -1139,11 +1146,58 @@ function renderLayoutSegments() {
   document.querySelectorAll("#distributionSeg button").forEach((b) => {
     b.classList.toggle("active", b.dataset.val === (state.settings.distribution || "auto"));
   });
+  const layoutMode = state.settings.layout === "grid+featured" ? "grid+featured" : "grid";
+  document.querySelectorAll("#layoutModeSeg button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.val === layoutMode);
+  });
+  document.querySelectorAll("#featuredPositionSeg button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.val === (state.settings.featuredPosition || "after"));
+  });
+  const featuredCard = $("featuredCard");
+  if (featuredCard) featuredCard.hidden = layoutMode !== "grid+featured";
+}
+
+/**
+ * Vẽ 4 select "món nổi bật theo từng màn hình" (Option 2 "grid+featured") —
+ * xem pagination.js computeScreenPages()/JSDoc "mô hình trang" để hiểu ĐÚNG
+ * những gì admin sắp xếp lại được ở đây (CHỈ chọn món + CHỈ 1 vị trí
+ * before/after áp dụng chung cho cả 4 màn — KHÔNG có danh sách trang tự do
+ * kéo-thả, cố tình giữ đơn giản theo yêu cầu "không phát minh page-builder
+ * nặng"). Gọi lại mỗi khi state.items đổi (renderItemsTab()) để danh sách
+ * món trong <select> luôn khớp món/tên hiện có.
+ */
+function renderFeaturedControls() {
+  const grid = $("featuredScreenGrid");
+  if (!grid) return;
+  const visibleItems = sortItems(state.items.filter((i) => i.visible !== false));
+  const featuredByScreen = state.settings.featuredByScreen || {};
+  const options = `<option value="">— Không chọn —</option>` + visibleItems
+    .map((it) => `<option value="${escapeAttr(it.id)}">${escapeHtml(it.name_pl || "(chưa đặt tên)")}</option>`)
+    .join("");
+  grid.innerHTML = [1, 2, 3, 4].map((n) => {
+    const current = featuredByScreen[n] || featuredByScreen[String(n)] || "";
+    return `<div class="featured-screen-item">
+      <label>Màn hình ${n}</label>
+      <select data-screen="${n}">${options}</select>
+    </div>`;
+  }).join("");
+  grid.querySelectorAll("select[data-screen]").forEach((sel) => {
+    const n = sel.dataset.screen;
+    sel.value = featuredByScreen[n] || featuredByScreen[String(n)] || "";
+    sel.addEventListener("change", () => {
+      const next = { ...(state.settings.featuredByScreen || {}) };
+      if (sel.value) next[n] = sel.value; else delete next[n];
+      state.settings.featuredByScreen = next;
+      renderLayoutDiagram();
+      saveSettingsPatch({ featuredByScreen: next });
+    });
+  });
 }
 
 function renderLayoutControlsFromSettings() {
   if (!$("itemsPerPageSeg")) return;
   renderLayoutSegments();
+  renderFeaturedControls();
   setIfNotFocused($("rotationSlider"), state.settings.rotationSeconds || 10);
   $("rotationVal").textContent = `${state.settings.rotationSeconds || 10}s`;
   if (document.activeElement !== $("transitionSelect")) $("transitionSelect").value = state.settings.transition || "fade";
@@ -1172,8 +1226,11 @@ function renderLayoutDiagram() {
     const pages = layout.screens[n];
     const pagesHtml = pages.length
       ? pages.map((p) => {
+          const isFeatured = !!(p.items && p.items.featured);
           const names = p.items.map((it) => it.name_pl || "(chưa đặt tên)").join(", ") || "(trống)";
-          return `<div class="diagram-page"><div class="diagram-page__label">Trang ${p.pageNo}</div><div class="diagram-page__items">${escapeHtml(names)}</div></div>`;
+          const cls = isFeatured ? "diagram-page diagram-page--featured" : "diagram-page";
+          const label = isFeatured ? `⭐ Trang nổi bật` : `Trang ${p.pageNo}`;
+          return `<div class="${cls}"><div class="diagram-page__label">${label}</div><div class="diagram-page__items">${escapeHtml(names)}</div></div>`;
         }).join("")
       : `<div class="diagram-empty">Không có trang — hiện màn hình chờ</div>`;
     return `<div class="diagram-screen">
@@ -1200,6 +1257,27 @@ function initLayoutTab() {
       renderLayoutSegments();
       renderLayoutDiagram();
       saveSettingsPatch({ distribution: val });
+    });
+  });
+
+  document.querySelectorAll("#layoutModeSeg button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.val;
+      state.settings.layout = val;
+      renderLayoutSegments();
+      renderFeaturedControls();
+      renderLayoutDiagram();
+      saveSettingsPatch({ layout: val });
+    });
+  });
+
+  document.querySelectorAll("#featuredPositionSeg button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.val;
+      state.settings.featuredPosition = val;
+      renderLayoutSegments();
+      renderLayoutDiagram();
+      saveSettingsPatch({ featuredPosition: val });
     });
   });
 

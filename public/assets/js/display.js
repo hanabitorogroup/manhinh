@@ -412,6 +412,17 @@ export function bootDisplay(screenId) {
         ? s.transition
         : "fade",
       distribution: s.distribution === "manual" ? "manual" : "auto",
+      // "grid" | "grid+featured" — xem pagination.js computeScreenPages() +
+      // display.css khối "Trang nổi bật". Bất kỳ giá trị lạ nào (dữ liệu cũ,
+      // gõ tay sai) đều rơi về "grid" an toàn (hành vi CŨ, không bao giờ tự
+      // nhiên bật trang nổi bật nếu admin chưa từng chọn).
+      layout: s.layout === "grid+featured" ? "grid+featured" : "grid",
+      // { [screenId]: itemId } — KHÔNG ép kiểu gì thêm ở đây (id không hợp lệ
+      // tự động rơi về "không có trang nổi bật cho màn đó" trong
+      // pagination.js, không cần validate trước).
+      featuredByScreen:
+        s.featuredByScreen && typeof s.featuredByScreen === "object" ? s.featuredByScreen : {},
+      featuredPosition: s.featuredPosition === "before" ? "before" : "after",
       // BUG CŨ: `typeof s.currency === "string" && s.currency ? ... : "zł"`
       // coi currency:"" (giá trị HỢP LỆ, nghĩa là "tắt hậu tố tiền tệ" — xem
       // formatPrice()/currencySuffix() bên dưới) là falsy rồi vẫn ép về "zł",
@@ -493,17 +504,29 @@ export function bootDisplay(screenId) {
     const transitionType = state.settings ? state.settings.transition : "fade";
     const incoming = state.activeLayer === "A" ? layerB : layerA;
     const outgoing = state.activeLayer === "A" ? layerA : layerB;
+    // Trang nổi bật (xem buildCards()) đổi hẳn CSS layout của chính
+    // .menu-grid-layer (class "featured", xem display.css) — phải NẰM
+    // TRONG cùng chuỗi className bên dưới, vì mỗi lần đổi trạng thái
+    // layer-incoming/active/leaving đều GHI ĐÈ TOÀN BỘ className (không
+    // phải classList.add/remove riêng lẻ) để đảm bảo animation CSS chạy
+    // lại từ đầu (ép reflow) — ghi "featured" tách rời bằng classList sẽ
+    // bị chính dòng ghi đè này xoá mất ngay sau đó.
+    const isFeatured = !!(items && items.featured);
+    const featuredClass = isFeatured ? " featured" : "";
 
     buildCards(incoming, items || []);
 
     // reset class rồi ép reflow để animation CSS chạy lại từ đầu
-    incoming.className = `menu-grid-layer t-${transitionType} layer-incoming`;
-    incoming.dataset.count = String((items || []).length);
+    incoming.className = `menu-grid-layer t-${transitionType} layer-incoming${featuredClass}`;
+    if (isFeatured) {
+      delete incoming.dataset.count; // không áp quy tắc data-count="N" của lưới cho trang nổi bật
+    } else {
+      incoming.dataset.count = String((items || []).length);
+    }
     void incoming.offsetWidth;
 
     requestAnimationFrame(() => {
-      incoming.className = `menu-grid-layer t-${transitionType} layer-active`;
-      incoming.dataset.count = String((items || []).length);
+      incoming.className = `menu-grid-layer t-${transitionType} layer-active${featuredClass}`;
       if (outgoing.childElementCount > 0) {
         outgoing.className = `menu-grid-layer t-${transitionType} layer-leaving`;
       }
@@ -533,6 +556,18 @@ export function bootDisplay(screenId) {
 
   function buildCards(container, items) {
     container.innerHTML = "";
+    // Trang nổi bật (Option 2 "grid+featured", xem pagination.js
+    // computeScreenPages()) — `items` là 1 mảng [item] có đánh dấu
+    // `.featured = true`. Render markup RIÊNG (1 món chiếm toàn panel,
+    // không phải lưới nhiều ô) — xem buildFeaturedArticle() + display.css
+    // khối "Trang nổi bật". `.featured` là thuộc tính gắn trên CHÍNH mảng
+    // `items` (không phải trên container) nên còn nguyên qua tham số hàm.
+    if (items && items.featured && items[0]) {
+      container.classList.add("featured");
+      container.appendChild(buildFeaturedArticle(items[0]));
+      return; // không chạy fitCardPrices() — không có .card nào trong trang này
+    }
+    container.classList.remove("featured");
     items.forEach((item, i) => {
       const card = document.createElement("article");
       card.className = "card";
@@ -647,6 +682,67 @@ export function bootDisplay(screenId) {
       </div>
       ${captionHtml}
     </div>`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Trang nổi bật (Option 2 "grid+featured") — 1 món chiếm TOÀN panel, theo
+  // đúng ảnh tham chiếu chủ quán đưa (mảng màu phẳng, ảnh RẤT LỚN, tên RẤT
+  // LỚN, mô tả, giá từng biến thể dạng "flag/arrow", legend nhỏ giải thích
+  // icon cay — xem display.css khối "Trang nổi bật"). Trả về 1 <article>
+  // DOM THẬT (không phải chuỗi HTML như cardMarkup()) để khớp đúng cách
+  // buildCards() gọi appendChild() trực tiếp — trang này chỉ có 1 món, không
+  // cần lặp innerHTML nhiều lần như buildCards() với mảng thẻ lưới.
+  // ---------------------------------------------------------------------
+  function buildFeaturedArticle(item) {
+    const name = escapeHtml(item.name_pl || "");
+    const currency = state.settings ? state.settings.currency : undefined;
+    const desc = item.desc_pl ? `<p class="feature-desc">${escapeHtml(item.desc_pl)}</p>` : "";
+
+    const pills = [];
+    if (item.spicy) pills.push('<span class="tag-pill tag-spicy"><span class="dot"></span>Ostre</span>');
+    if (item.vege) pills.push('<span class="tag-pill tag-vege"><span class="dot"></span>Wege</span>');
+    if (item.best) pills.push('<span class="tag-pill tag-best"><span class="dot"></span>Bestseller</span>');
+    const pillHtml = pills.length ? `<div class="feature-pills">${pills.join("")}</div>` : "";
+
+    const imgSrc = resolveImage(item);
+    const mediaHtml = imgSrc
+      ? `<div class="feature-media"><img src="${escapeAttr(imgSrc)}" alt="${escapeAttr(name)}" loading="lazy" decoding="async"></div>`
+      : `<div class="feature-media placeholder"><span class="placeholder-glyph" aria-hidden="true">${glyphFor(item.category)}</span></div>`;
+
+    // Giá từng biến thể dạng "flag" — KHÔNG dùng priceAndCaptionFor() (hàm đó
+    // rút gọn nhiều biến thể thành 1 khoảng giá "od X"/"X–Y" cho vừa 1 hàng
+    // hẹp cạnh tên món trên thẻ lưới 6-up). Trang nổi bật có cả panel cho 1
+    // món nên liệt kê ĐỦ từng lựa chọn — đúng yêu cầu "variant prices as
+    // flag/arrow tags" (số nhiều).
+    const rawVariants = Array.isArray(item.variants) ? item.variants : [];
+    const variants = rawVariants.filter((v) => v && Number.isFinite(Number(v.price)));
+    const flagsHtml = variants.length > 1
+      ? variants.map((v) => {
+          const label = Array.isArray(v.axis) ? v.axis.filter(Boolean).join(" · ") : "";
+          const labelHtml = label ? `<span class="flag-label">${escapeHtml(label)}</span>` : "";
+          return `<span class="flag-tag">${labelHtml}<span class="flag-price">${formatPrice(v.price, item.priceSuffix, currency)}</span></span>`;
+        }).join("")
+      : `<span class="flag-tag"><span class="flag-price">${formatPrice(
+          variants.length === 1 ? variants[0].price : item.price,
+          item.priceSuffix,
+          currency
+        )}</span></span>`;
+
+    // Legend nhỏ giải thích icon "Ostre" — xem ghi chú đầy đủ ở display.css
+    // (dữ liệu chỉ có spicy:true/false, không có thang số 1-3, nên đây là 1
+    // legend CHUNG giải thích ký hiệu, không phải mức độ RIÊNG của món này).
+    const legendHtml = `<div class="feature-legend"><span class="legend-dot"></span>Ostre = danie pikantne</div>`;
+
+    const article = document.createElement("article");
+    article.className = "feature";
+    article.innerHTML = `${mediaHtml}<div class="feature-body">
+      ${pillHtml}
+      <h2 class="feature-name">${name}</h2>
+      ${desc}
+      <div class="feature-prices">${flagsHtml}</div>
+      ${legendHtml}
+    </div>`;
+    return article;
   }
 
   // ---------------------------------------------------------------------

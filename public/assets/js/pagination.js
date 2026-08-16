@@ -35,8 +35,11 @@ export function chunk(arr, size) {
 }
 
 /**
- * Tính danh sách trang (mỗi trang = mảng món) cho MỘT màn hình cụ thể, đúng
- * thuật toán ARCHITECTURE.md mục 3.
+ * Tính danh sách TRANG LƯỚI (mỗi trang = mảng món, hiển thị dạng lưới nhiều
+ * ô) cho MỘT màn hình cụ thể, đúng thuật toán ARCHITECTURE.md mục 3. Đây là
+ * phần thuật toán GỐC (chưa tính trang nổi bật) — computeScreenPages() bên
+ * dưới mới là hàm CÔNG KHAI (bọc thêm trang nổi bật khi settings.layout =
+ * "grid+featured", xem JSDoc ở đó).
  *
  * Chế độ "auto": chia đều toàn bộ số trang cho 4 màn hình theo thứ tự
  * (perScreen = ceil(pages.length/4), cắt theo screenId).
@@ -53,7 +56,7 @@ export function chunk(arr, size) {
  * @param {number} screenId - 1..4
  * @returns {array[]} mảng các trang, mỗi trang là mảng món
  */
-export function computeScreenPages(settings, items, screenId) {
+function computeGridPages(settings, items, screenId) {
   if (!settings) return [];
   const itemsPerPage = settings.itemsPerPage;
   const visible = (items || []).filter((i) => i && i.visible !== false);
@@ -85,6 +88,58 @@ export function computeScreenPages(settings, items, screenId) {
   const perScreen = Math.ceil(pages.length / 4) || 0;
   const start = (screenId - 1) * perScreen;
   return pages.slice(start, start + perScreen);
+}
+
+/**
+ * Tính danh sách trang CUỐI CÙNG cho 1 màn hình — trang lưới (computeGridPages,
+ * KHÔNG đổi thuật toán mục 3) CỘNG THÊM 1 "trang nổi bật" (1 món duy nhất,
+ * chiếm toàn panel) khi settings.layout === "grid+featured" (Option 2, xem
+ * display.css khối "Trang nổi bật" + display.js buildFeaturedArticle()).
+ *
+ * Mô hình "trang" CHỦ ĐỘNG GIỮ ĐƠN GIẢN theo đúng yêu cầu "không phát minh 1
+ * page-builder nặng": KHÔNG có danh sách trang tuỳ ý admin sắp xếp tự do —
+ * chỉ có ĐÚNG 2 khối trang mỗi màn hình (khối trang lưới, do thứ tự món +
+ * itemsPerPage + distribution quyết định — admin đổi thứ tự bằng kéo-thả ở
+ * tab "Món ăn", ĐÃ có sẵn; và 0-hoặc-1 trang nổi bật) và ĐÚNG 1 chỗ có thể
+ * "sắp xếp lại": settings.featuredPosition ("before" | "after") quyết định
+ * trang nổi bật hiện TRƯỚC hay SAU khối trang lưới trong vòng xoay của màn
+ * hình đó — admin KHÔNG thể chen trang nổi bật vào GIỮA 2 trang lưới, và
+ * KHÔNG thể đổi thứ tự CÁC trang lưới với nhau độc lập với thứ tự món (xem
+ * README/JSDoc admin.js phần renderFeaturedControls() để biết đúng những gì
+ * admin làm được/không làm được).
+ *
+ * Nếu layout="grid+featured" nhưng màn hình N CHƯA được chủ quán chọn món
+ * nổi bật (settings.featuredByScreen[N] thiếu/rỗng, hoặc trỏ tới 1 id không
+ * còn tồn tại/không còn visible) → rơi về ĐÚNG trang lưới như layout="grid",
+ * KHÔNG BAO GIỜ để màn hình trống hay vỡ vì thiếu lựa chọn — cùng nguyên tắc
+ * phòng thủ "không bao giờ để màn hình trống" xuyên suốt hệ thống này.
+ *
+ * @param {object} settings - { itemsPerPage, distribution, layout,
+ *   featuredByScreen, featuredPosition }
+ * @param {array} items - toàn bộ menu (chưa lọc visible)
+ * @param {number} screenId - 1..4
+ * @returns {array[]} mảng các trang; trang nổi bật là 1 mảng [item] có thêm
+ *   thuộc tính `.featured = true` (đọc bằng Array.isArray(page) && page.featured)
+ *   để display.js/admin.js phân biệt với trang lưới thường mà KHÔNG cần đổi
+ *   shape (vẫn là 1 mảng món, tương thích ngược với mọi chỗ đang lặp `.items`).
+ */
+export function computeScreenPages(settings, items, screenId) {
+  const gridPages = computeGridPages(settings, items, screenId);
+  if (!settings || settings.layout !== "grid+featured") return gridPages;
+
+  const visible = (items || []).filter((i) => i && i.visible !== false);
+  const featuredMap = settings.featuredByScreen && typeof settings.featuredByScreen === "object"
+    ? settings.featuredByScreen
+    : {};
+  const featuredId = featuredMap[screenId];
+  const featuredItem = featuredId ? visible.find((i) => i && i.id === featuredId) : null;
+  if (!featuredItem) return gridPages;
+
+  const featuredPage = [featuredItem];
+  featuredPage.featured = true;
+  return settings.featuredPosition === "before"
+    ? [featuredPage, ...gridPages]
+    : [...gridPages, featuredPage];
 }
 
 /**

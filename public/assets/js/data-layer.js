@@ -44,6 +44,21 @@ const DEFAULT_SETTINGS = {
   itemsPerPage: 6,
   transition: "fade",
   distribution: "auto",
+  // "grid" (mặc định) | "grid+featured" — xem pagination.js computeScreenPages()
+  // và display.css khối "Trang nổi bật". Field MỚI, nằm trong danh sách
+  // SETTINGS_HEAL_KEYS (suy ra từ Object.keys() ở dưới) nên document
+  // settings/global cũ (tạo trước khi tính năng này tồn tại) sẽ tự được
+  // "chữa" bổ sung field này qua healSettingsDefaults(), không cần migrate
+  // tay.
+  layout: "grid",
+  // { [screenId 1..4]: itemId } — món được chọn làm "trang nổi bật" cho từng
+  // màn hình khi layout = "grid+featured". Rỗng ({}) là an toàn: màn hình
+  // không có lựa chọn nào rơi về đúng trang lưới, không bao giờ trống (xem
+  // pagination.js).
+  featuredByScreen: {},
+  // "after" (mặc định) | "before" — trang nổi bật hiện SAU hay TRƯỚC khối
+  // trang lưới trong vòng xoay của mỗi màn hình.
+  featuredPosition: "after",
   currency: "zł",
   // Mặc định TẮT: bảng hiệu 4K đã tự nói lên nó là menu, dải "MENU" chỉ chiếm
   // chỗ đắt của màn hình mà không truyền thêm thông tin gì — chủ quán vẫn có

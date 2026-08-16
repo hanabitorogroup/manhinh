@@ -13,6 +13,15 @@
 import * as DataLayer from "../assets/js/data-layer.js";
 import { THEMES } from "../assets/js/themes.js";
 import { computeAllScreensLayout } from "../assets/js/pagination.js";
+import { SEED_DATA } from "../assets/js/seed-data.js";
+
+// Số món trong dữ liệu mẫu ĐỌC TRỰC TIẾP từ seed-data.js thay vì gõ tay một
+// con số — trước đây panel này hardcode "72 món" (số của bộ món Nhật giả
+// định cũ) và không ai sửa lại khi seed-data.js đổi thành thực đơn Oława
+// thật (27 món, có variants). Đọc SEED_DATA.menu.length ở đây đảm bảo con số
+// hiển thị KHÔNG BAO GIỜ lệch khỏi seed thật, kể cả sau này ai đó thêm/bớt
+// món trong seed-data.js mà quên cập nhật admin.js.
+const SEED_COUNT = Array.isArray(SEED_DATA?.menu) ? SEED_DATA.menu.length : 0;
 
 const {
   initData,
@@ -590,9 +599,17 @@ function renderOverview() {
    -----------------------------------------------------------------------------
    CHỈ hiện khi !DEMO (ở DEMO, seed đã tự nạp sẵn vào localStorage — xem
    ensureSeeded() trong data-layer.js). Nổi bật khi `menu` đang RỖNG (lần đầu
-   kết nối Firebase thật, đúng tình huống chủ quán cần nhất), thu gọn vào
-   <details> khi đã có dữ liệu để không vô tình bấm nhầm — thao tác này ghi/
-   xoá hàng chục document thật.
+   kết nối Firebase thật, đúng tình huống chủ quán cần nhất).
+   Khi `menu` ĐÃ có dữ liệu, nút "Nhập thực đơn" vẫn hiện THẲNG (không thu gọn)
+   — trước đây cả nút nhập LẪN nút xoá cùng nằm sau 1 <details> gập với nhãn
+   "🛠️ Công cụ dữ liệu mẫu (nâng cao)", nên chủ quán cần nhập lại thực đơn thật
+   (đúng việc cần làm ngay sau khi có Firestore thật) không tìm thấy nút, phải
+   hỏi lại. Nút nhập vẫn AN TOÀN khi bấm — showSeedChoiceModal() bên dưới luôn
+   chặn lại bằng modal 3 lựa chọn (Thêm vào / Xoá hết rồi nhập lại / Huỷ) khi
+   `menu` không rỗng, không có đường nào bấm 1 phát là ghi đè/xoá ngay. CHỈ thao
+   tác THẬT SỰ không cần xác nhận thêm nào khác — xoá sạch không kèm nhập lại —
+   mới còn giấu sau <details> gập, đúng tinh thần bản gốc: cái gì phá dữ liệu
+   không hỏi thêm mới cần rào, cái gì đã có rào riêng thì không cần giấu nữa.
    ========================================================================== */
 function renderSeedPanel() {
   const wrap = $("seedPanelWrap");
@@ -604,6 +621,7 @@ function renderSeedPanel() {
   const count = state.items.length;
   const seedAvailable = typeof seedSampleData === "function";
   const deleteAvailable = typeof deleteAllMenuItems === "function";
+  const seedLabel = `${SEED_COUNT} món`;
 
   let bodyHtml;
   if (count === 0) {
@@ -612,21 +630,30 @@ function renderSeedPanel() {
       <div class="setup-panel__icon">📥</div>
       <div class="setup-panel__body">
         <h4>Firestore chưa có món ăn nào</h4>
-        <p>Nhập nhanh 72 món mẫu (lấy từ <code>seed-data.js</code>) để thử nghiệm toàn bộ hệ thống ngay — 4 màn hình, phân trang, xoay vòng — thay vì phải gõ tay từng món. Có thể xoá sạch sau khi thử xong, trước khi nhập thực đơn thật.</p>
+        <p>Nhập nhanh thực đơn Oława thật (<strong>${seedLabel}</strong>, kèm biến thể) từ <code>seed-data.js</code> thay vì phải gõ tay từng món — sẵn sàng chạy ngay trên 4 màn hình, phân trang, xoay vòng. Có thể xoá sạch sau đó nếu muốn nhập lại từ đầu.</p>
         <div class="setup-panel__actions">
-          <button type="button" class="btn btn-primary" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập 72 món ăn mẫu</button>
+          <button type="button" class="btn btn-primary" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập thực đơn (${seedLabel})</button>
         </div>
       </div>
     </div>`;
   } else {
     bodyHtml = `
-    <details class="setup-panel setup-panel--collapsed">
-      <summary>🛠️ Công cụ dữ liệu mẫu (nâng cao)</summary>
+    <div class="setup-panel">
+      <div class="setup-panel__icon">📥</div>
       <div class="setup-panel__body">
-        <p>Firestore hiện có <strong>${count}</strong> món ăn. Dùng công cụ dưới đây để nhập thêm dữ liệu mẫu, hoặc xoá sạch để chuẩn bị nhập thực đơn thật.</p>
+        <h4>Nhập thực đơn Oława</h4>
+        <p>Firestore hiện có <strong>${count}</strong> món ăn. Nút này nạp thực đơn Oława thật (<strong>${seedLabel}</strong>, kèm biến thể) từ <code>seed-data.js</code> — dùng để thay thế dữ liệu thử nghiệm cũ hoặc nhập lại món mẫu bị xoá nhầm. Có dữ liệu sẵn rồi sẽ được hỏi lại trước khi ghi đè.</p>
         <div class="setup-panel__actions">
-          <button type="button" class="btn" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập dữ liệu mẫu</button>
-          <button type="button" class="btn btn-danger" id="seedDeleteBtn" ${deleteAvailable ? "" : "disabled"}>🗑️ Xoá toàn bộ dữ liệu mẫu</button>
+          <button type="button" class="btn btn-primary" id="seedImportBtn" ${seedAvailable ? "" : "disabled"}>📥 Nhập thực đơn (${seedLabel})</button>
+        </div>
+      </div>
+    </div>
+    <details class="setup-panel setup-panel--collapsed">
+      <summary>🗑️ Xoá toàn bộ dữ liệu (nâng cao)</summary>
+      <div class="setup-panel__body">
+        <p>Xoá vĩnh viễn toàn bộ <strong>${count}</strong> món ăn hiện có trong Firestore, không nhập lại gì cả. Chỉ dùng khi muốn dọn sạch trước khi tự nhập thực đơn khác.</p>
+        <div class="setup-panel__actions">
+          <button type="button" class="btn btn-danger" id="seedDeleteBtn" ${deleteAvailable ? "" : "disabled"}>🗑️ Xoá toàn bộ dữ liệu</button>
         </div>
       </div>
     </details>`;
@@ -662,6 +689,10 @@ function seedProgressHide() {
 function showSeedChoiceModal(count) {
   return new Promise((resolve) => {
     $("seedChoiceCount").textContent = String(count);
+    // Cả 2 dòng mô tả trong modal đều nhắc số món của SEED_DATA — điền cùng
+    // 1 giá trị vào mọi chỗ mang class này thay vì gõ tay số trong HTML tĩnh
+    // (xem ghi chú SEED_COUNT ở đầu file: số này phải luôn khớp seed thật).
+    document.querySelectorAll(".seed-import-count").forEach((el) => { el.textContent = String(SEED_COUNT); });
     const overlay = $("seedChoiceModalOverlay");
     overlay.classList.remove("hidden");
     const addBtn = $("seedChoiceAddBtn");
@@ -702,16 +733,16 @@ async function openSeedImportFlow() {
     if (mode === "replace") {
       const ok2 = await showConfirm(
         "Xác nhận xoá dữ liệu hiện có",
-        `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn đang có trong Firestore, sau đó nhập lại 72 món mẫu. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn muốn tiếp tục?`,
+        `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn đang có trong Firestore, sau đó nhập lại thực đơn Oława thật (${SEED_COUNT} món). Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn muốn tiếp tục?`,
         "Xoá và nhập lại"
       );
       if (!ok2) return;
     }
   } else {
     const ok = await showConfirm(
-      "Nhập dữ liệu mẫu",
-      "Thao tác này sẽ ghi 72 món ăn mẫu vào collection \"menu\" trong Firestore, cùng cấu hình mặc định \"settings/global\" nếu chưa có. Chỉ nên dùng để thử nghiệm hệ thống trước khi nhập thực đơn thật. Tiếp tục?",
-      "Nhập 72 món mẫu"
+      "Nhập thực đơn Oława",
+      `Thao tác này sẽ ghi ${SEED_COUNT} món của thực đơn Oława thật vào collection "menu" trong Firestore, cùng cấu hình mặc định "settings/global" nếu chưa có. Tiếp tục?`,
+      `Nhập ${SEED_COUNT} món`
     );
     if (!ok) return;
   }
@@ -743,8 +774,8 @@ async function openSeedDeleteFlow() {
     return;
   }
   const ok = await showConfirm(
-    "Xoá toàn bộ dữ liệu mẫu",
-    `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn hiện có trong collection "menu" của Firestore. Hành động này KHÔNG THỂ HOÀN TÁC — chỉ dùng khi muốn dọn dữ liệu thử nghiệm trước khi nhập thực đơn thật. Bạn có chắc chắn?`,
+    "Xoá toàn bộ dữ liệu",
+    `Bạn sắp XOÁ VĨNH VIỄN toàn bộ ${count} món ăn hiện có trong collection "menu" của Firestore, không nhập lại gì cả. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn?`,
     "Xoá toàn bộ"
   );
   if (!ok) return;

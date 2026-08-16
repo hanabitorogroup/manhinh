@@ -110,8 +110,11 @@
           <div class="section-title">Trạng thái màn hình</div>
           <div class="screen-grid" id="screenGrid"><!-- JS render --></div>
 
-          <!-- Nhập/xoá dữ liệu mẫu (Blocker 1) — admin.js ẩn hẳn ở DEMO,
-               nổi bật khi `menu` rỗng, thu gọn khi đã có dữ liệu. -->
+          <!-- Nhập/xoá dữ liệu mẫu (Blocker 1) — admin.js ẩn hẳn ở DEMO. Nút
+               nhập thực đơn LUÔN hiện thẳng (được modal 3 lựa chọn bảo vệ khi
+               `menu` đã có dữ liệu); chỉ nút xoá-không-nhập-lại là thu gọn
+               sau <details>, vì đó là thao tác duy nhất không hỏi lại gì
+               thêm. -->
           <div id="seedPanelWrap"><!-- JS render --></div>
         </section>
 
@@ -441,8 +444,8 @@
     <div class="modal__body">
       <p>Collection <code>menu</code> hiện đã có <strong id="seedChoiceCount">0</strong> món ăn. Chọn cách nhập dữ liệu mẫu:</p>
       <ul class="seed-choice-list">
-        <li><strong>Thêm vào</strong> — giữ nguyên món đang có, chỉ ghi thêm 72 món mẫu (món mẫu trùng id với lần seed trước sẽ được ghi đè lại đúng dữ liệu gốc, không đụng món do bạn tự thêm).</li>
-        <li><strong>Xoá hết rồi nhập lại</strong> — xoá vĩnh viễn toàn bộ món đang có, sau đó nhập lại 72 món mẫu từ đầu. Không thể hoàn tác.</li>
+        <li><strong>Thêm vào</strong> — giữ nguyên món đang có, chỉ ghi thêm <span class="seed-import-count">0</span> món của thực đơn Oława thật (món trùng id với lần nhập trước sẽ được ghi đè lại đúng dữ liệu gốc, không đụng món do bạn tự thêm).</li>
+        <li><strong>Xoá hết rồi nhập lại</strong> — xoá vĩnh viễn toàn bộ món đang có, sau đó nhập lại thực đơn Oława thật (<span class="seed-import-count">0</span> món) từ đầu. Không thể hoàn tác.</li>
       </ul>
     </div>
     <div class="modal__foot seed-choice-foot">

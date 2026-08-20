@@ -88,6 +88,7 @@ const state = {
     headerText_pl: "MENU",
     effectsLevel: "full",
     reloadHour: 4,
+    displayScalePercent: 100,
     revision: 0,
   },
   items: [],
@@ -1764,6 +1765,15 @@ function renderLayoutControlsFromSettings() {
   const reloadHour = Number.isFinite(state.settings.reloadHour) ? state.settings.reloadHour : 4;
   setIfNotFocused($("reloadHourSlider"), reloadHour);
   $("reloadHourVal").textContent = formatHour(reloadHour);
+  const displayScale = Number.isFinite(state.settings.displayScalePercent) ? state.settings.displayScalePercent : 100;
+  setIfNotFocused($("displayScaleSlider"), displayScale);
+  $("displayScaleVal").textContent = formatDisplayScale(displayScale);
+}
+
+/** 100 -> "100% (Tự động)", số khác -> "110%" — nhấn mạnh 100 là mặc định an toàn. */
+function formatDisplayScale(percent) {
+  const n = Math.min(125, Math.max(80, Math.round(Number(percent) || 100)));
+  return n === 100 ? "100% (Tự động)" : `${n}%`;
 }
 
 /** "4" -> "04:00" — hiển thị giờ tự tải lại dễ đọc hơn số trần. */
@@ -1875,6 +1885,29 @@ function initLayoutTab() {
     $("reloadHourVal").textContent = formatHour(val);
     state.settings.reloadHour = val;
     debouncedReloadHour(val);
+  });
+
+  // "Cỡ hiển thị" — hệ số nhân toàn bộ rem trên CẢ 4 màn hình (xem
+  // display.css `html{font-size}` + applyDisplayScale() trong display.js).
+  // Kẹp CỨNG bằng thuộc tính min/max trên chính <input type="range"> (80-125)
+  // — người dùng KHÔNG THỂ kéo ra ngoài khoảng an toàn, và display.js
+  // normalizeSettings() kẹp lại LẦN NỮA phía màn hình thật (2 lớp phòng thủ:
+  // 1 lớp UI + 1 lớp dữ liệu, phòng trường hợp ghi thẳng vào Firestore ngoài
+  // admin). "Về Tự động" (nút reset) LUÔN đưa được về 100% — không có ngưỡng
+  // nào khiến chủ quán "kẹt" không sửa lại được qua chính trang admin.
+  const displayScaleSlider = $("displayScaleSlider");
+  const debouncedDisplayScale = debounce((val) => saveSettingsPatch({ displayScalePercent: val }), 400);
+  displayScaleSlider.addEventListener("input", () => {
+    const val = parseInt(displayScaleSlider.value, 10);
+    $("displayScaleVal").textContent = formatDisplayScale(val);
+    state.settings.displayScalePercent = val;
+    debouncedDisplayScale(val);
+  });
+  $("displayScaleResetBtn").addEventListener("click", () => {
+    displayScaleSlider.value = "100";
+    $("displayScaleVal").textContent = formatDisplayScale(100);
+    state.settings.displayScalePercent = 100;
+    saveSettingsPatch({ displayScalePercent: 100 }, "Đã đưa cỡ hiển thị về Tự động (100%)");
   });
 }
 

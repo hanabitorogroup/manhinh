@@ -75,18 +75,28 @@
    ĐỘC LẬP ĐỘ PHÂN GIẢI (quan trọng — đọc trước khi sửa kích thước bất kỳ đâu):
    Phần cứng thật (IIYAMA 49.5" 4K) chạy WebView trên SoC yếu, phiên bản
    Chromium cũ, và KHÔNG đảm bảo tôn trọng `<meta name="viewport" content=
-   "width=1920">` khai báo trong omhN.html. Nếu WebView tôn trọng: layout ở
-   1920 CSS px, DPR 2 — đúng như thiết kế gốc. Nếu KHÔNG tôn trọng: layout ở
-   3840 CSS px, DPR 1 — toàn bộ `clamp()` kiểu cũ (chỉ dùng đơn vị px cứng cho
-   min/max) sẽ bị kẹt ở giá trị max, chữ nhỏ hơn thật ~40%.
+   "width=1920">` khai báo trong omhN.html. XÁC MINH TRÊN PHẦN CỨNG THẬT (heartbeat
+   Firestore status/screen{1..4}): WebView KHÔNG tôn trọng thẻ meta VÀ cũng
+   không rơi về đúng 3840 vật lý — nó dựng ở **1280 CSS px** (Android WebView
+   co lại theo cách riêng của nó), UA `Android 11 ... Chrome/127`. Vậy layout
+   PHẢI đúng ở CẢ BA: 1280 (thật, ưu tiên số 1 — đây là viewport duy nhất tồn
+   tại ở phần cứng đang chạy), 1920 và 3840 (giả thuyết cược trước đây vẫn có
+   thể đúng cho panel thay thế sau này/khi cập nhật iiSignage, và bản xem
+   trước trong admin cố định 1920). Ở BẤT KỲ viewport nào trong 3 mức này mà
+   `clamp()` chạm sàn/trần (chỉ dùng đơn vị px cứng cho min/max), chữ sẽ lệch
+   tỉ lệ thiết kế — xem sự cố sàn 12px thật đã xảy ra ở 1280px, sửa ở
+   `html { font-size }` ngay dưới đây.
 
    Cách khắc phục: `html { font-size: ... }` bên dưới co giãn tuyến tính theo
    100vw (16px ở 1920, 32px ở 3840, đúng tỉ lệ DPR giả định trong thiết kế
    gốc) — nhờ vậy MỌI min/max viết bằng `rem` cũng co giãn theo, không còn bị
-   "kẹp" ở độ phân giải cao. Vì vậy toàn bộ min/max trong clamp() ở file này
-   PHẢI dùng `rem`, không được dùng `px` cứng (trừ những chỗ cố ý nhỏ/trang trí
-   không ảnh hưởng độ dễ đọc, có ghi chú riêng). Giá trị vw/vh ở giữa clamp()
-   giữ nguyên vì bản thân chúng đã co giãn đúng theo viewport rồi.
+   "kẹp" ở độ phân giải cao, VÀ (xem chứng minh đầy đủ ở khối `html{}` ngay
+   dưới) tự động cho ra cỡ chữ VẬT LÝ (mm) như nhau ở BẤT KỲ viewport CSS px
+   nào — kể cả 1280 — miễn công thức không bị kẹp sàn/trần. Vì vậy toàn bộ
+   min/max trong clamp() ở file này PHẢI dùng `rem`, không được dùng `px` cứng
+   (trừ những chỗ cố ý nhỏ/trang trí không ảnh hưởng độ dễ đọc, có ghi chú
+   riêng). Giá trị vw/vh ở giữa clamp() giữ nguyên vì bản thân chúng đã co
+   giãn đúng theo viewport rồi.
    ========================================================================== */
 
 /* ---------- Font tự host (self-hosted) --------------------------------------
@@ -151,10 +161,44 @@ html {
      không — 1920px viewport -> 16px (giống mặc định trình duyệt, không đổi
      hành vi cũ), 3840px viewport -> 32px (đúng DPR 2 giả định trong thiết kế
      gốc nếu WebView bỏ qua meta viewport và trả về CSS px = px vật lý).
-     clamp() có sàn/trần chỉ để không vỡ layout khi test ở cửa sổ rất nhỏ hoặc
-     rất lớn — 2 độ phân giải mục tiêu thật (1920, 3840) không bao giờ chạm 2
-     đầu này. */
-  font-size: clamp(12px, calc(100vw / 120), 40px);
+
+     SÀN 7.5px (KHÔNG PHẢI 12px như bản trước) — SỬA LỖI ĐÃ XÁC MINH TRÊN PHẦN
+     CỨNG THẬT: 4 màn IIYAMA đang chạy báo `res=1280x720` qua heartbeat
+     Firestore (status/screen{1..4}), tức WebView dựng trang ở **1280 CSS px
+     thật**, không phải 1920 hay 3840 như giả định trước đây. Ở 1280px,
+     100vw/120 = 10.667px — bản thân số này ĐÚNG (xem lý luận bên dưới), nhưng
+     sàn cũ 12px cao hơn 10.667px nên "kẹp" root font lên 12px, tức MỌI kích
+     thước rem trong file này bị to hơn dự kiến ~12.5% so với tỉ lệ thiết kế —
+     đủ để layout tràn ở đúng độ phân giải PHẦN CỨNG THẬT DUY NHẤT tồn tại
+     trong quán (bàn cờ lệch chủ quán báo cáo).
+
+     Vì sao công thức `vw/120` (KHÔNG kẹp) tự nó đã đúng ở BẤT KỲ viewport nào,
+     kể cả 1280 — không chỉ 1920/3840: panel vật lý rộng cố định (1095mm bề
+     ngang, xem mục "TOÁN KHOẢNG CÁCH ĐỌC" ở admin/ARCHITECTURE), nên
+     mm-trên-mỗi-CSS-px = 1095/vw. Cỡ chữ vật lý (mm) = (vw/120)px *
+     (1095/vw)mm/px = 1095/120 ≈ 9.125mm — HẰNG SỐ, không phụ thuộc vw. Đây là
+     lý do công thức tuyến tính-theo-vw tự bù trừ mọi độ phân giải WebView có
+     thể báo cho CÙNG 1 tấm panel vật lý, kể cả những độ phân giải chưa từng
+     kiểm — miễn KHÔNG bị kẹp sàn/trần.
+
+     Sàn mới 7.5px = 900px/120 — CHỌN KHỚP ĐÚNG ngưỡng `@media
+     (max-width:900px)` bên dưới (chế độ xem điện thoại, công thức RIÊNG ghi
+     đè hoàn toàn quy tắc này). Vì vw/120 tăng đơn điệu theo vw, với mọi
+     viewport >900px (mọi độ phân giải panel thật đã biết: 1280, 1920, 3840,
+     VÀ bất kỳ độ phân giải lạ nào 1 panel thay thế trong tương lai có thể báo
+     — xem --display-scale bên dưới cho trường hợp panel đó khác kích cỡ vật
+     lý 1095mm), vw/120 luôn > 7.5, sàn không bao giờ thực sự kẹp giá trị nào
+     nữa — nó chỉ còn tồn tại để `clamp()` có đủ 3 tham số hợp lệ. Trần 40px
+     giữ nguyên (không phải nguồn gốc lỗi — 3840/120=32 < 40, chưa từng chạm).
+
+     --display-scale: hệ số nhân do ADMIN đặt (mặc định 1 = "Tự động", xem
+     applyDisplayScale() trong display.js + trường settings.displayScalePercent)
+     — cho phép chủ quán bù trừ 1 panel thay thế trong tương lai KHÔNG cùng bề
+     rộng vật lý 1095mm mà không cần sửa code (công thức vw/120 phía trên tự
+     lo mọi panel CÙNG kích cỡ vật lý, --display-scale chỉ cần khi panel mới
+     có kích cỡ vật lý khác). var(..., 1) là fallback khi JS chưa kịp chạy
+     (lần vẽ đầu tiên) hoặc admin chưa từng đổi — giữ nguyên hành vi hiện tại. */
+  font-size: calc(clamp(7.5px, calc(100vw / 120), 40px) * var(--display-scale, 1));
 }
 
 html,
@@ -1100,20 +1144,22 @@ body::-webkit-scrollbar {
    -----------------------------------------------------------------------------
    BỐI CẢNH LỖI (đã xác minh lại, không suy đoán): mọi kích thước trong file
    này quy về `rem`, và `html{font-size}` ở đầu file co giãn tuyến tính theo
-   100vw NHƯNG có sàn cứng 12px (`clamp(12px, calc(100vw/120), 40px)`). Sàn đó
-   là AN TOÀN cho 2 độ phân giải panel thật (1920/3840 — không bao giờ chạm
-   sàn) nhưng SAI khi cùng công thức đó chạy trên khung nhìn ~390px CSS
+   100vw VỚI sàn cứng (12px khi khối "review aid" này được viết; ĐÃ HẠ xuống
+   7.5px sau khi phát hiện panel thật báo viewport 1280px — xem chú thích đầy
+   đủ ở đầu file, `html{font-size}`). Sàn đó AN TOÀN cho các độ phân giải
+   panel thật (1280/1920/3840 — không bao giờ chạm sàn dù là 12px hay 7.5px)
+   nhưng SAI khi cùng công thức đó chạy trên khung nhìn ~390px CSS
    (iPhone Safari, `<meta name="viewport" content="width=1920">` không được
    tôn trọng nên trang KHÔNG tự zoom-out về 1920 mà dựng thật ở ~390 CSS px):
-   root font-size bị kẹp cứng ở sàn 12px (390/120 = 3.25px, dưới sàn), trong
+   root font-size bị kẹp cứng ở sàn (390/120 = 3.25px, dưới cả 2 mức sàn), trong
    khi lưới `.menu-grid-layer[data-count="6"]` VẪN chia 3 cột như thiết kế
    panel — mỗi ô chỉ còn ~130px ngang. `--card-name-fs` cố định 3.25rem = 39px
    (SÀN đọc ở khoảng cách 4-5m, KHÔNG được phép hạ — xem chú thích ở khối "Thẻ
    món" phía trên) nhét vào ô 130px khiến `overflow-wrap:anywhere` phải bẻ
    TỪNG TỪ làm nhiều mảnh ("KUR CZA K" thay vì "KURCZAK") — đúng lỗi chủ quán
    chụp màn hình gửi lại. Đây KHÔNG phải bug ở công thức `clamp()` (công thức
-   đó đúng và bắt buộc phải giữ cho 2 độ phân giải panel thật, xem ARCHITECTURE
-   mục 9(a)) — đây là hệ quả của việc DÙNG NGUYÊN 1 thiết kế "bảng hiệu 4K xem
+   đó đúng và bắt buộc phải giữ cho các độ phân giải panel thật (1280/1920/3840),
+   xem ARCHITECTURE mục 9(a)) — đây là hệ quả của việc DÙNG NGUYÊN 1 thiết kế "bảng hiệu 4K xem
    từ xa" cho 1 khung nhìn nhỏ hơn ~5-10 LẦN mà KHÔNG có breakpoint nào xử lý.
 
    HƯỚNG XỬ LÝ ĐÃ CHỌN, VÀ VÌ SAO KHÔNG CHỌN 2 HƯỚNG CÒN LẠI:
@@ -1132,17 +1178,20 @@ body::-webkit-scrollbar {
      lớn để giữ nguyên mật độ 3 cột mà chữ vẫn đọc được (vd máy tính bảng
      ngang) — không đúng với điện thoại dọc ~390px.
    - KHÔNG chọn "chỉ nới sàn clamp() xuống thấp hơn": clamp() là 1 CÔNG THỨC
-     DUY NHẤT dùng chung cho panel THẬT (1920/3840) — sửa hằng số của nó ở
-     đây (ngoài `@media`) sẽ đổi luôn cả panel thật, đúng điều brief cấm
+     DUY NHẤT dùng chung cho panel THẬT (1280/1920/3840) — sửa hằng số của nó
+     ở đây (ngoài `@media`) sẽ đổi luôn cả panel thật, đúng điều brief cấm
      ("Không được phụ thuộc vào thẻ meta... mọi thay đổi CSS phải kiểm ở CẢ
      1920×1080 lẫn 3840×2160"). Ghi đè bên TRONG `@media (max-width: 900px)`
      dưới đây tách hẳn 2 công thức — panel thật (>900px, luôn luôn đúng vì
-     panel không bao giờ nhỏ hơn 1920) không hề chạy qua khối này.
+     panel THẤP NHẤT đã biết là 1280 — xem sàn 7.5px ở `html{font-size}` đầu
+     file, hạ từ 12px CHÍNH VÌ 1280 nằm giữa 900 và 1920) không hề chạy qua
+     khối này.
 
    NGƯỠNG 900px: khớp ĐÚNG ngưỡng `isMobilePreviewViewport()` mà admin.js đã
    dùng sẵn cho tab "Xem trước" (lưới 1 cột + `&safe=1` cho iframe xem trước
    trên điện thoại) — dùng chung 1 con số cho toàn hệ thống thay vì bịa thêm
-   1 ngưỡng riêng ở đây. Không bao giờ khớp panel thật (luôn ≥1920px).
+   1 ngưỡng riêng ở đây. Không bao giờ khớp panel thật (viewport thấp nhất đã
+   biết là 1280px, vẫn > 900).
 
    GHI CHÚ QUAN TRỌNG VỀ TAB "XEM TRƯỚC" CỦA ADMIN: khối `@media` này KHÔNG
    ảnh hưởng gì tới 4 iframe `omhN.html?preview=1` trong tab đó, kể cả khi

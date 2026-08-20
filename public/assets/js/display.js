@@ -335,6 +335,7 @@ export function bootDisplay(screenId) {
       onSettings((settings) => {
         state.settings = normalizeSettings(settings);
         applyThemeIfNeeded();
+        applyDisplayScale();
         recompute();
       });
     } catch (e) {
@@ -436,6 +437,16 @@ export function bootDisplay(screenId) {
       headerText_pl: typeof s.headerText_pl === "string" && s.headerText_pl ? s.headerText_pl : "MENU",
       effectsLevel: ["full", "lite", "off"].includes(s.effectsLevel) ? s.effectsLevel : "full",
       reloadHour: clamp(Math.trunc(numOr(s.reloadHour, 4)), 0, 23),
+      // Hệ số nhân cỡ chữ toàn màn hình (%) — 100 = "Tự động" (KHÔNG đổi gì,
+      // hành vi hệt như trước khi field này tồn tại: --display-scale ở
+      // display.css fallback về 1 khi field vắng/không hợp lệ). Chỉ cần chỉnh
+      // khi lắp 1 panel thay thế có kích cỡ VẬT LÝ khác 1095mm — xem chú
+      // thích đầy đủ ở display.css `html{font-size}` và applyDisplayScale()
+      // bên dưới. Kẹp 80-125: đủ rộng để bù chênh lệch panel thực tế, hẹp đủ
+      // để chủ quán không vô tình làm layout tràn/vỡ không thể tự sửa qua
+      // admin (xem cùng khoảng kẹp ở admin.js/index.html — 2 nơi PHẢI khớp
+      // nhau, xem ghi chú ở đó).
+      displayScalePercent: clamp(Math.round(numOr(s.displayScalePercent, 100)), 80, 125),
       revision: numOr(s.revision, 0),
     };
   }
@@ -978,6 +989,27 @@ export function bootDisplay(screenId) {
       }
     }
     updateParticles(theme);
+  }
+
+  /**
+   * Ghi --display-scale (phân số, 1 = 100%) lên <html> từ
+   * settings.displayScalePercent — display.css đọc biến này trong
+   * `html { font-size: calc(clamp(...) * var(--display-scale, 1)) }` để nhân
+   * TOÀN BỘ hệ thống rem (mọi kích thước trong display.css) lên/xuống theo
+   * đúng 1 tỉ lệ, dùng khi admin cần bù cho 1 panel thay thế có kích cỡ vật
+   * lý khác 1095mm — xem chú thích đầy đủ ở display.css. Đặt trên
+   * `document.documentElement` (thẻ <html>, đúng phần tử mà rule CSS đó áp
+   * dụng) chứ KHÔNG phải #app, vì #app không phải tổ tiên của <html>.
+   * Không cần so sánh "đã áp dụng chưa" như applyThemeIfNeeded() — ghi 1 CSS
+   * custom property là thao tác rẻ, không đáng canh trạng thái riêng.
+   */
+  function applyDisplayScale() {
+    const percent = state.settings ? state.settings.displayScalePercent : 100;
+    try {
+      document.documentElement.style.setProperty("--display-scale", String(percent / 100));
+    } catch (e) {
+      /* 1 dòng CSS var không được phép làm sập vòng lặp hiển thị */
+    }
   }
 
   function updateParticles(theme) {

@@ -248,6 +248,18 @@
                 Mỗi ngày, đúng 1 lần vào giờ này (giờ địa phương của màn hình), cả 4 màn hình tự tải lại trang để dọn bộ nhớ trình duyệt tích tụ khi chạy 24/7. Nên chọn giờ quán đóng cửa/vắng khách.
               </p>
             </div>
+
+            <div class="control-card">
+              <h4>Cỡ hiển thị (cả 4 màn hình)</h4>
+              <div class="slider-row">
+                <input type="range" id="displayScaleSlider" min="80" max="125" step="5" value="100" />
+                <span class="slider-val" id="displayScaleVal">100% (Tự động)</span>
+              </div>
+              <button type="button" class="btn" id="displayScaleResetBtn" style="margin-top:8px;">Về Tự động</button>
+              <p class="field-hint">
+                Để nguyên 100% (Tự động) — cả 4 màn hình đã TỰ điều chỉnh đúng cỡ chữ theo độ phân giải thật của chính nó, không cần chỉnh gì thêm. Chỉ tăng/giảm số này khi lắp 1 màn hình THAY THẾ có kích cỡ khác hẳn 4 màn hiện tại và chữ trông sai cỡ so với 3 màn còn lại: tăng % để chữ to hơn, giảm % để chữ nhỏ hơn — áp dụng NGAY LẬP TỨC cho CẢ 4 màn hình cùng lúc, không chỉnh được riêng từng màn. Nếu chỉnh nhầm và chữ tràn ra ngoài thẻ món, bấm "Về Tự động" để quay lại trạng thái an toàn ban đầu.
+              </p>
+            </div>
           </div>
 
           <div class="section-title">Sơ đồ phân trang trực quan</div>

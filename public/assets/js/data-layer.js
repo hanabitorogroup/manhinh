@@ -71,6 +71,16 @@ const DEFAULT_SETTINGS = {
   // maybeNightlyReload() trong display.js. Mặc định 4 (04:00 sáng, ngoài giờ
   // phục vụ của hầu hết quán ăn).
   reloadHour: 4,
+  // Hệ số nhân cỡ chữ toàn màn hình (%), 100 = "Tự động" — không đổi gì so
+  // với hành vi mặc định (--display-scale fallback 1 ở display.css khi field
+  // này vắng/không hợp lệ). Chỉ cần chỉnh khi lắp panel thay thế có kích cỡ
+  // VẬT LÝ khác 1095mm — công thức root-font vw/120 trong display.css đã TỰ
+  // bù mọi độ phân giải CSS px khác nhau của CÙNG 1 kích cỡ panel vật lý,
+  // không cần field này cho trường hợp đó. Trường MỚI, nằm trong
+  // SETTINGS_HEAL_KEYS nên settings/global cũ tự "chữa" bổ sung field này,
+  // không cần migrate tay. Xem admin.js tab "Bố cục hiển thị" và
+  // applyDisplayScale() trong display.js.
+  displayScalePercent: 100,
   revision: 0,
   updatedAt: null,
 };

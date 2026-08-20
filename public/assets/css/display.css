@@ -806,7 +806,23 @@ body::-webkit-scrollbar {
      "calm" còn lại xử lý ở khối .feature-body bên dưới (nội dung cao hơn hẳn
      bản trước, không còn dải trống lớn một mình). */
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  grid-template-rows: 1fr;
+  /* minmax(0, 1fr), KHÔNG PHẢI 1fr trần (== minmax(auto,1fr)) — SỬA LỖI THẬT
+     ĐO ĐƯỢC ở 1280×720 (cũng có ở 1920/3840, cùng tỉ lệ — chưa ai để ý vì
+     panel 4K "dư" pixel che bớt): `1fr` trần có SÀN NGẦM = auto (min-content)
+     — nếu nội dung .feature-body (tên món + mô tả + N "vé" giá .flag-tag)
+     cần chiều cao NHIỀU HƠN 1 hàng lưới cho phép (món có nhiều biến thể, vd
+     "Kurczak chrupiący" thật: 3 mức cay × 2 khẩu phần = 6 vé), chính HÀNG
+     LƯỚI tự phình to VƯỢT khung .menu-grid-layer cố định (position:absolute;
+     inset:0) — .feature-media/.feature-body (2 con trực tiếp của hàng đó)
+     đo được cùng 1 chiều cao phình to y hệt nhau, tràn hẳn ra ngoài viewport
+     phía dưới (vé giá CUỐI CÙNG mất hẳn ngoài màn hình — mất thông tin giá,
+     không phải lỗi hiển thị vặt). `minmax(0, 1fr)` bỏ sàn auto đó — hàng lưới
+     LUÔN đúng bằng đúng chiều cao khung, không bao giờ phình to nữa; phần
+     .feature-body co giãn NỘI DUNG bên trong khung cố định đó là việc của
+     fitFeaturePrices() (display.js) — xem .tight-prices/.tighter-prices bên
+     dưới VÀ ghi chú JSDoc của hàm đó (giải thích vì sao KHÔNG hạ font-size
+     .flag-price/.feature-name — đã sát sàn cap-height ~20mm/4m đã duyệt). */
+  grid-template-rows: minmax(0, 1fr);
   column-gap: clamp(1.5rem, 3vw, 4rem);
   align-items: stretch;
 }
@@ -892,6 +908,36 @@ body::-webkit-scrollbar {
      nhưng không còn large dead region". */
   gap: clamp(1.3rem, 3vh, 3.4rem);
   min-width: 0;
+}
+/* .tight-prices / .tighter-prices — 2 bậc xiết KHOẢNG CÁCH (KHÔNG BAO GIỜ cỡ
+   chữ) do fitFeaturePrices() (display.js) tự gắn SAU khi đo thật
+   scrollHeight > clientHeight (món có nhiều biến thể giá tràn khung cố định
+   — xem ghi chú `grid-template-rows: minmax(0,1fr)` ở
+   `.menu-grid-layer.featured` phía trên). CHỈ hạ gap/padding: .flag-price đã
+   đứng SÁT sàn cap-height ~20mm/4m đã duyệt (xem display.css khối
+   .flag-price), hạ font-size thêm sẽ phá đúng sàn "không được hồi quy" đó —
+   khoảng cách là đòn bẩy AN TOÀN DUY NHẤT còn lại. Đa số món (1-3 biến thể)
+   KHÔNG BAO GIỜ chạm 2 class này — .feature-body mặc định vẫn "dày/rộng rãi"
+   đúng bản mockup gốc, chỉ món nào thật sự tràn mới bị xiết. */
+.feature-body.tight-prices {
+  gap: clamp(0.6rem, 1.4vh, 1.8rem);
+}
+.feature-body.tight-prices .feature-prices {
+  gap: clamp(0.35rem, 0.8vh, 0.8rem);
+}
+.feature-body.tight-prices .flag-tag {
+  padding-top: 0.4em;
+  padding-bottom: 0.4em;
+}
+.feature-body.tighter-prices {
+  gap: clamp(0.4rem, 0.8vh, 1rem);
+}
+.feature-body.tighter-prices .feature-prices {
+  gap: clamp(0.2rem, 0.4vh, 0.4rem);
+}
+.feature-body.tighter-prices .flag-tag {
+  padding-top: 0.22em;
+  padding-bottom: 0.22em;
 }
 
 .feature-pills {

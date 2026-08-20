@@ -576,7 +576,8 @@ export function bootDisplay(screenId) {
     if (items && items.featured && items[0]) {
       container.classList.add("featured");
       container.appendChild(buildFeaturedArticle(items[0]));
-      return; // không chạy fitCardPrices() — không có .card nào trong trang này
+      fitFeaturePrices(container); // KHÔNG chạy fitCardPrices() — không có .card nào trong trang này
+      return;
     }
     container.classList.remove("featured");
     items.forEach((item, i) => {
@@ -657,6 +658,43 @@ export function bootDisplay(screenId) {
       // nhận wrap 2 dòng, KHÔNG cắt/không tràn (overflow-wrap/word-break vẫn
       // giữ nguyên) — suy biến an toàn còn hơn phá layout.
     });
+  }
+
+  /**
+   * "Không tràn khung" cho trang nổi bật khi món có NHIỀU biến thể giá (vd
+   * 2 trục "độ cay" × "khẩu phần" = 6 "vé" .flag-tag — ĐÚNG dữ liệu thật
+   * "Kurczak chrupiący"/"Krewetki chrupiące" trong seed-data.js). ĐO ĐƯỢC
+   * THẬT bằng Playwright ở CẢ 3 độ phân giải panel thật (1280/1920/3840,
+   * cùng 1 tỉ lệ — không phải lỗi riêng của 1280): tổng chiều cao
+   * feature-name + mô tả + .feature-prices (N vé + gap) có thể VƯỢT chiều
+   * cao cột chữ (.feature-body, bị khoá cứng đúng bằng chiều cao hàng lưới
+   * — xem `.menu-grid-layer.featured{grid-template-rows:minmax(0,1fr)}`
+   * trong display.css, PHẦN 2 của cùng 1 lần sửa lỗi này). display.css tự
+   * nó (thuần CSS) không co giãn theo SỐ LƯỢNG biến thể, nên vé giá CUỐI
+   * CÙNG bị tràn hẳn ra ngoài viewport — MẤT THÔNG TIN GIÁ với khách, không
+   * chỉ là lệch hình.
+   *
+   * CHỈ hạ gap/padding (2 bậc .tight-prices/.tighter-prices, display.css) —
+   * KHÔNG BAO GIỜ hạ font-size .flag-price/.flag-label/.feature-name: 3 kích
+   * thước đó đã đứng SÁT hoặc TRÊN sàn cap-height ~20mm/khoảng nhìn 3-4m đã
+   * duyệt (xem chú thích --card-name-fs/.flag-price trong display.css) — hạ
+   * thêm sẽ phá đúng sàn "không được phép hồi quy". Khoảng cách là đòn bẩy
+   * AN TOÀN DUY NHẤT còn lại. Đa số món (1-3 biến thể, số đông thực đơn thật)
+   * KHÔNG BAO GIỜ chạm 2 class này — layout vẫn "dày/rộng rãi" đúng bản
+   * mockup gốc đã duyệt, chỉ món nào thật sự tràn mới bị xiết dần.
+   */
+  function fitFeaturePrices(container) {
+    const body = container.querySelector(".feature-body");
+    if (!body) return;
+    body.classList.remove("tight-prices", "tighter-prices");
+    const fits = () => body.scrollHeight <= body.clientHeight + 1;
+    if (fits()) return;
+    body.classList.add("tight-prices");
+    if (fits()) return;
+    body.classList.add("tighter-prices");
+    // Hết 2 bậc: nếu vẫn tràn (số biến thể cực đoan hơn mọi món thật đã đo),
+    // CHẤP NHẬN tràn nhẹ còn lại hơn là phá sàn cap-height giá — suy biến an
+    // toàn còn hơn khiến giá không đọc được ở khoảng nhìn 3-4m.
   }
 
   function cardMarkup(item) {

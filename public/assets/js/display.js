@@ -1071,11 +1071,29 @@ export function bootDisplay(screenId) {
   function startHeartbeat() {
     const send = () => {
       try {
+        // `res` (giữ tên cũ để không phá heartbeat cũ) LUÔN LÀ MÀN HÌNH VẬT LÝ
+        // (window.screen.width/height) — KHÔNG PHẢI khung nhìn CSS thật đang
+        // dùng để dựng trang. Hai giá trị này từng bị đọc nhầm là một, khiến
+        // nhiều vòng sửa lỗi trước đây đuổi theo con số sai (screen báo
+        // 1280x720 trong khi khung nhìn CSS thực tế do <meta viewport> quyết
+        // định — xem docs/ARCHITECTURE.md §9a). Vì vậy gửi CẢ BA, đặt tên rõ
+        // ràng, để không ai phải đoán lại lần nữa:
+        //   screenRes    = window.screen.width x height  (màn hình vật lý)
+        //   viewportRes  = window.innerWidth x innerHeight (khung nhìn CSS
+        //                  thật sự dùng để dựng trang — đây mới là con số
+        //                  quyết định layout có tràn/cắt hay không)
+        //   dpr          = window.devicePixelRatio
+        const screenRes = `${window.screen.width}x${window.screen.height}`;
+        const viewportRes = `${window.innerWidth}x${window.innerHeight}`;
+        const dpr = window.devicePixelRatio || 1;
         const info = {
           revision: state.settings ? state.settings.revision : null,
           page: state.currentPageIndex + 1,
           ua: navigator.userAgent,
-          res: `${window.screen.width}x${window.screen.height}`,
+          res: screenRes, // tương thích ngược — vẫn là màn hình vật lý, không phải viewport
+          screenRes,
+          viewportRes,
+          dpr,
         };
         const result = heartbeat(SCREEN_ID, info);
         if (result && typeof result.catch === "function") result.catch(() => {});

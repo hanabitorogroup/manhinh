@@ -593,7 +593,9 @@ function renderOverview() {
         <dt>Liên lạc cuối</dt><dd>${relativeTimeVi(ms)}</dd>
         <dt>Trang hiện tại</dt><dd>${st.page != null ? st.page : "—"}</dd>
         <dt>Revision</dt><dd>${st.revision != null ? st.revision : "—"}</dd>
-        <dt>Độ phân giải</dt><dd>${st.res ? escapeHtml(st.res) : "—"}</dd>
+        <dt>Màn hình vật lý</dt><dd>${escapeHtml(st.screenRes || st.res || "—")}</dd>
+        <dt>Khung nhìn thực tế (CSS)</dt><dd>${st.viewportRes ? escapeHtml(st.viewportRes) : "—"}</dd>
+        <dt>Tỉ lệ điểm ảnh (DPR)</dt><dd>${st.dpr != null ? escapeHtml(String(st.dpr)) : "—"}</dd>
       </dl>
     </div>`;
   }).join("");
